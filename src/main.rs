@@ -23,8 +23,11 @@ fn read(args: Vec<String>) -> (FileType, String) {
             process::exit(1);
         }
     };
+    let file_name = &args[2];
 
-    match util_functions::read_file(&args[2]) {
+    util_functions::validate_file(file_type.clone(), file_name);
+
+    match util_functions::read_file(file_name) {
         Ok(contents) => (file_type, contents),
         Err(e) => {
             eprintln!("Error reading file: {}", e);

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use thiserror::Error;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FileType {
     Json,

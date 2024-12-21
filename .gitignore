@@ -1,0 +1,5 @@
+# Rust build specifics
+/target
+
+# MacOS specific files
+.DS_Store

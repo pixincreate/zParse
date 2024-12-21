@@ -1,0 +1,12 @@
+[package]
+name = "zparse"
+version = "0.1.0"
+authors = ["Pa1Nark <pa1nark@pixincreate.dev>"]
+edition = "2021"
+rust-version = "1.81.0"
+description = "A simple JSON and TOML parser written in Rust with inter-conversions"
+
+[dependencies]
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.133"
+thiserror = "2.0.8"

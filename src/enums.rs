@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Error as SerdeJsonError;
 use std::io;
+use strum::EnumIter;
 use thiserror::Error;
+use toml::de::Error as TomlError;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, EnumIter, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum FileType {
     Json,
@@ -15,4 +18,18 @@ pub enum FileError {
     NotFound,
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum ContentError {
+    #[error("Error parsing JSON: {0}")]
+    InvalidJson(#[from] SerdeJsonError),
+    #[error("Error parsing TOML: {0}")]
+    InvalidToml(#[from] TomlError),
+}
+
+#[derive(Error, Debug)]
+pub enum SkillIssue {
+    #[error("Usage: cargo run -- <filename>")]
+    WrongCommand,
 }

@@ -18,6 +18,18 @@ pub enum FileError {
     NotFound,
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
+    #[error("Not a file")]
+    NotFile,
+    #[error("File extension is invalid or missing")]
+    InvalidExtension,
+    #[error(
+        "Wrong file extension. Expected: {expected}, found: {found}. Supported types: {supported}"
+    )]
+    WrongExtension {
+        expected: String,
+        found: String,
+        supported: String,
+    },
 }
 
 #[derive(Error, Debug)]

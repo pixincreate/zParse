@@ -14,50 +14,25 @@ pub fn read_file(filename: &str) -> Result<String, FileError> {
     })
 }
 
-pub fn validate_file(file_type: FileType, filename: &str) {
-    if let Ok(metadata) = fs::metadata(filename) {
-        if metadata.is_file() {
-            let file_extension = filename.split('.').last();
-
-            match file_type {
-                FileType::Json => {
-                    if file_extension != Some("json") {
-                        eprintln!(
-                            "Invalid file type: {}\nSupport types: {}",
-                            filename,
-                            FileType::iter()
-                                .map(|x| format!("{:?}", x).to_lowercase())
-                                .collect::<Vec<String>>()
-                                .join(", ")
-                        );
-                        std::process::exit(1);
-                    }
-                }
-                FileType::Toml => {
-                    if file_extension != Some("toml") {
-                        eprintln!(
-                            "Invalid file type: {}\nSupport types: {}",
-                            filename,
-                            FileType::iter()
-                                .map(|x| format!("{:?}", x).to_lowercase())
-                                .collect::<Vec<String>>()
-                                .join(", ")
-                        );
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
-    }
-}
-
+/// Reads and validates a file of the specified type.
+///
+/// # Arguments
+/// * `args` - Command line arguments vector containing file path
+///
+/// # Returns
+/// * `Ok((FileType, String))` - The file type and its contents
+/// * `Err(Box<dyn Error>)` - Any error that occurred during reading or parsing
 pub fn read(args: Vec<String>) -> Result<(FileType, String), Box<dyn Error>> {
     // args will be 3 if the command is correct. example: /targer/debug/zparse json file.json
     if args.len() != 2 {
         return Err(Box::new(SkillIssue::WrongCommand));
     }
 
-    let file_extension = args[1].split('.').last().unwrap_or_default();
+    let file_name = &args[1];
+    let file_extension = file_name
+        .split('.')
+        .last()
+        .ok_or(Box::new(FileError::InvalidExtension))?;
 
     let file_type = match file_extension.to_lowercase().as_str() {
         "json" => FileType::Json,
@@ -74,9 +49,12 @@ pub fn read(args: Vec<String>) -> Result<(FileType, String), Box<dyn Error>> {
             process::exit(1);
         }
     };
-    let file_name = &args[1];
 
-    validate_file(file_type.clone(), file_name);
+    let metadata = fs::metadata(file_name).map_err(|e| Box::new(FileError::Io(e)))?;
+
+    if !metadata.is_file() {
+        return Err(Box::new(FileError::NotFile));
+    }
 
     match read_file(file_name) {
         Ok(contents) => match file_type {
@@ -103,19 +81,21 @@ fn parse_toml(contents: &str) -> Result<TomlValue, TomlError> {
 
 fn pretty_print(file_type: FileType, content: String) -> (FileType, String) {
     match file_type {
-        FileType::Json => (
-            file_type,
-            serde_json::to_string_pretty(&content).unwrap_or_default(),
-        ),
-        FileType::Toml => {
-            // Parse the content as TOML first
-            if let Ok(toml_value) = content.parse::<TomlValue>() {
+        FileType::Json => {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                 (
                     file_type,
-                    toml::to_string_pretty(&toml_value).unwrap_or_default(),
+                    serde_json::to_string_pretty(&json).unwrap_or(content),
                 )
             } else {
-                (file_type, content) // Return original content if parsing fails
+                (file_type, content)
+            }
+        }
+        FileType::Toml => {
+            if let Ok(toml) = content.parse::<TomlValue>() {
+                (file_type, toml::to_string_pretty(&toml).unwrap_or(content))
+            } else {
+                (file_type, content)
             }
         }
     }

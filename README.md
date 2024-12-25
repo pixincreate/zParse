@@ -1,9 +1,9 @@
 # zParse
 
-A simple json and toml parser written in rust.
+A simple yet over complicated json and toml parser written in rust.
 
 zParse also supports inter conversion between json and toml.
 
 ## Usage
 
-cargo r -- <path/to/file>
+cargo r -- --file-name <path/to/file-name.extension> --convert <json/toml> --output <path/to/output-file.extension>

@@ -43,6 +43,6 @@ pub enum ContentError {
 
 #[derive(Error, Debug)]
 pub enum SkillIssue {
-    #[error("Usage: cargo run -- <filename>")]
+    #[error("Usage: cargo run -- --file-name <filename>")]
     WrongCommand,
 }

@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use serde_json::Error as SerdeJsonError;
 use std::io;
@@ -5,7 +6,7 @@ use strum::EnumIter;
 use thiserror::Error;
 use toml::de::Error as TomlError;
 
-#[derive(Clone, Debug, Serialize, Deserialize, EnumIter, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, EnumIter, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum FileType {
     Json,

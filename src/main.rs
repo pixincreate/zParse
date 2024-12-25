@@ -1,12 +1,17 @@
-use std::env;
-use zparse::util_functions::read;
+use clap::Parser;
+use std::{error::Error, fs::File, io::Write};
+use zparse::util_functions::{read, Args};
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let (_file_type, contents) = read(args).unwrap_or_else(|error| {
-        eprintln!("{}", error);
-        std::process::exit(1);
-    });
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
+    let response = read(args)?;
 
-    println!("{}", contents)
+    if let Some(output_path) = response.output {
+        let mut file = File::create(output_path)?;
+        file.write_all(response.contents.as_bytes())?;
+    } else {
+        println!("{}", response.contents);
+    }
+
+    Ok(())
 }

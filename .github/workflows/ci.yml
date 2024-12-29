@@ -165,7 +165,7 @@ jobs:
 
       - name: Cargo build release
         shell: bash
-        run: cargo check --features "release"
+        run: cargo check
 
   typos:
     name: Spell check

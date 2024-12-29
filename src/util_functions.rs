@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Error as SerdeJsonError, Value as SerdeJsonValue};
 use std::{
     error::Error,
-    process, {fs, io},
+    {fs, io},
 };
 use strum::IntoEnumIterator;
 use toml::{de::Error as TomlError, Value as TomlValue};
@@ -75,15 +75,14 @@ pub fn read(args: Args) -> Result<ReturnArgs, Box<dyn Error>> {
                 "json" => FileType::Json,
                 "toml" => FileType::Toml,
                 _ => {
-                    eprintln!(
-                        "Invalid output file type: {}\nSupported types: {}",
-                        output_extension,
-                        FileType::iter()
-                            .map(|x| format!("{:?}", x).to_lowercase())
-                            .collect::<Vec<String>>()
-                            .join(", ")
-                    );
-                    process::exit(1);
+                    let supported_types = FileType::iter()
+                        .map(|x| format!("{:?}", x).to_lowercase())
+                        .collect::<Vec<String>>()
+                        .join(", ");
+                    return Err(Box::new(FileError::InvalidOutputType {
+                        found: output_extension.to_string(),
+                        supported: supported_types,
+                    }));
                 }
             };
         }
@@ -99,15 +98,14 @@ pub fn read(args: Args) -> Result<ReturnArgs, Box<dyn Error>> {
         "json" => FileType::Json,
         "toml" => FileType::Toml,
         _ => {
-            eprintln!(
-                "Invalid file type: {}\nSupported types: {}",
-                file_extension,
-                FileType::iter()
-                    .map(|x| format!("{:?}", x).to_lowercase())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            );
-            process::exit(1);
+            let supported_types = FileType::iter()
+                .map(|x| format!("{:?}", x).to_lowercase())
+                .collect::<Vec<String>>()
+                .join(", ");
+            return Err(Box::new(FileError::InvalidInputType {
+                found: file_extension.to_string(),
+                supported: supported_types,
+            }));
         }
     };
 

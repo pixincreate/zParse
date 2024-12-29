@@ -17,17 +17,31 @@ pub enum FileType {
 pub enum FileError {
     #[error("File not found")]
     NotFound,
+    
     #[error("IO error: {0}")]
-    Io(#[from] io::Error),
+    Io(io::Error),
+    
     #[error("Not a file")]
     NotFile,
-    #[error("File extension is invalid or missing")]
+    
+    #[error("Invalid file extension")]
     InvalidExtension,
-    #[error(
-        "Wrong file extension. Expected: {expected}, found: {found}. Supported types: {supported}"
-    )]
+    
+    #[error("Wrong extension: expected {expected}, found {found}. Supported: {supported}")]
     WrongExtension {
         expected: String,
+        found: String,
+        supported: String,
+    },
+    
+    #[error("Invalid output file type: {found}. Supported types: {supported}")]
+    InvalidOutputType {
+        found: String,
+        supported: String,
+    },
+    
+    #[error("Invalid input file type: {found}. Supported types: {supported}")]
+    InvalidInputType {
         found: String,
         supported: String,
     },

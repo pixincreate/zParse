@@ -2,24 +2,45 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 permissions:
-  contents: write # Only permission needed for releases
+  contents: write
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
+  release:
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_name: linux
+            arch: x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset_name: darwin
+            arch: x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: darwin
+            arch: aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: windows
+            arch: x86_64
+    env:
+      BINARY_NAME: zparse-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }}
+
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Extract Release Notes
         id: release-notes
+        if: matrix.platform.os == 'ubuntu-latest'
         run: |
-          # Extract content between the latest version headers in CHANGELOG.md
           VERSION=${GITHUB_REF#refs/tags/}
           NOTES=$(awk -v ver="$VERSION" '
             /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
@@ -29,48 +50,25 @@ jobs:
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-  build-release:
-    needs: create-release
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            binary_name: zparse
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            binary_name: zparse
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            binary_name: zparse.exe
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.platform.target }}
 
       - name: Build Binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.platform.target }}
 
       - name: Prepare Asset
         shell: bash
         run: |
           mkdir -p release
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} release/
-          else
-            cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} release/
-          fi
+          cp target/${{ matrix.platform.target }}/release/zparse${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
+             release/${{ env.BINARY_NAME }}
 
-      - name: Upload Release Asset
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release/${{ matrix.binary_name }}
-          body_path: ${{ needs.create-release.outputs.NOTES }}
+          files: release/${{ env.BINARY_NAME }}
+          body: ${{ steps.release-notes.outputs.NOTES }}
           draft: false
           prerelease: false
         env:

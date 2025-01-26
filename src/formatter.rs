@@ -1,3 +1,4 @@
+mod formatter_common;
 mod json;
 mod toml;
 

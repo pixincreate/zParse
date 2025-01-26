@@ -53,4 +53,4 @@ Contributions welcome! Please read our [contributing guidelines](CONTRIBUTING.md
 
 ## License
 
-Apache License 2.0
+This project is licensed under GPL-3.0. See [LICENSE](LICENSE) for more details.

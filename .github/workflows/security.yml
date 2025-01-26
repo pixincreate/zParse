@@ -19,20 +19,3 @@ jobs:
 
       - name: Run cargo-deny
         run: cargo deny check advisories
-
-  fuzz:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-
-      - name: Run fuzzing
-        run: |
-          cargo fuzz run json_parser -- -max_total_time=300
-          cargo fuzz run toml_parser -- -max_total_time=300

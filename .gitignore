@@ -3,3 +3,10 @@
 
 # MacOS specific files
 .DS_Store
+
+# Proptest regression files
+**/*.proptest-regressions
+
+fuzz/corpus
+fuzz/artifacts
+fuzz/target

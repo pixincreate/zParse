@@ -8,12 +8,17 @@ description = "A simple JSON and TOML parser written in Rust with inter-conversi
 license = "Apache-2.0"
 
 [dependencies]
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.137"
-strum = { version = "0.26.3", features = ["derive"] }
-thiserror = "2.0.11"
-toml = "0.8.19"
-clap = { version = "4.5.26", features = ["std", "derive", "help", "usage"] }
+clap = { version = "4.5.27", features = ["std", "derive", "help", "usage"] }
+tracing = "0.1.41"
+parking_lot = "0.12.3"
+
+[dev-dependencies]
+proptest = "1.0"
+criterion = "0.5"
+
+[[bench]]
+name = "parser_benchmarks"
+harness = false
 
 [lints.rust]
 unsafe_code = "forbid"

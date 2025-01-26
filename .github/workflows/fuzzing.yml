@@ -1,0 +1,46 @@
+name: Fuzzing
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Run weekly
+  workflow_dispatch:
+
+jobs:
+  fuzzing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Run JSON parser fuzzing
+        run: cargo +nightly fuzz run json_parser -- -max_total_time=300
+        continue-on-error: true
+
+      - name: Run TOML parser fuzzing
+        run: cargo +nightly fuzz run toml_parser -- -max_total_time=300
+        continue-on-error: true
+
+      - name: Run converter fuzzing
+        run: |
+          cargo +nightly fuzz run json_converter -- -max_total_time=300
+          cargo +nightly fuzz run toml_converter -- -max_total_time=300
+        continue-on-error: true
+
+      # If fuzzing finds crashes, save them as artifacts
+      - name: Save fuzzing artifacts upon failure
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: fuzzing-artifacts
+          path: |
+            fuzz/corpus
+            fuzz/artifacts

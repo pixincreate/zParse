@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "MainId": 1111,
+      "firstName": "Sherlock",
+      "lastName": "Homes",
+      "categories": [
+        {
+          "CategoryID": 1,
+          "CategoryName": "Example"
+        }
+      ]
+    },
+    {
+      "MainId": 122,
+      "firstName": "James",
+      "lastName": "Watson",
+      "categories": [
+        {
+          "CategoryID": 2,
+          "CategoryName": "Example2"
+        }
+      ]
+    }
+  ],
+  "messages": [],
+  "success": true 
+}

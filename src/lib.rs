@@ -4,7 +4,6 @@ pub mod converter;
 pub mod enums;
 pub mod error;
 pub mod formatter;
-pub mod intern;
 pub mod parser;
 pub mod utils;
 

@@ -21,7 +21,7 @@ env:
 
 jobs:
   formatting:
-    name: Check formatting
+    name: cargo-fmt
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +39,7 @@ jobs:
         run: cargo +nightly fmt --all --check
 
   typos:
-    name: Spell check
+    name: spell-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -49,7 +49,7 @@ jobs:
         uses: crate-ci/typos@master
 
   test:
-    name: Run tests on stable toolchain
+    name: test-${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
 
     env:

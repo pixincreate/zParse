@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   release:
+    name: release-${{ matrix.platform.asset_name }}
     runs-on: ${{ matrix.platform.os }}
     strategy:
       matrix:

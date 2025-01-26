@@ -3,3 +3,6 @@
 
 # MacOS specific files
 .DS_Store
+
+# Proptest regression files
+**/*.proptest-regressions

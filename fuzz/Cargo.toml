@@ -1,0 +1,39 @@
+[package]
+name = "zparse-fuzz"
+version = "0.1.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.zparse]
+path = ".."
+
+# Fuzz target declarations
+[[bin]]
+name = "json_parser"
+path = "fuzz_targets/json_parser.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "toml_parser"
+path = "fuzz_targets/toml_parser.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "json_converter"
+path = "fuzz_targets/json_converter.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "toml_converter"
+path = "fuzz_targets/toml_converter.rs"
+test = false
+doc = false

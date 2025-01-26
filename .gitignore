@@ -6,3 +6,7 @@
 
 # Proptest regression files
 **/*.proptest-regressions
+
+fuzz/corpus
+fuzz/artifacts
+fuzz/target

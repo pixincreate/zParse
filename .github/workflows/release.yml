@@ -36,7 +36,8 @@ jobs:
       BINARY_NAME: zparse-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 

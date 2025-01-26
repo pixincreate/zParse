@@ -1,3 +1,4 @@
+mod converter_common;
 mod json_to_toml;
 mod toml_to_json;
 
@@ -5,7 +6,7 @@ pub use json_to_toml::JsonToTomlConverter;
 pub use toml_to_json::TomlToJsonConverter;
 
 use crate::error::Result;
-use crate::parser::value::Value;
+use crate::parser::Value;
 
 pub struct Converter;
 

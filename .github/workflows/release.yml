@@ -71,6 +71,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: "zParse ${{ github.ref_name }}"
           files: release/${{ env.BINARY_NAME }}
           body: ${{ steps.release-notes.outputs.NOTES }}
           draft: false

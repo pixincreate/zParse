@@ -1,10 +1,10 @@
 [package]
 name = "zparse"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Pa1Nark <pa1nark@pixincreate.dev>"]
 edition = "2021"
 rust-version = "1.82.0"
-description = "A simple JSON and TOML parser written in Rust with inter-conversions"
+description = "A robust parser and converter library for JSON and TOML files written in Rust."
 license = "GPL-3.0"
 
 [dependencies]

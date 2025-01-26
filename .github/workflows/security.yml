@@ -9,6 +9,7 @@ on:
 
 jobs:
   security_audit:
+    name: security-audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

@@ -153,3 +153,33 @@ fn test_specific_value_conversions() {
         panic!("Root value is not an object/table");
     }
 }
+
+#[test]
+fn test_json_toml_json_roundtrip() {
+    let json_input = read_test_file("tests/input/file.json");
+    let mut json_parser = JsonParser::new(&json_input).unwrap();
+    let json_value = json_parser.parse().unwrap();
+
+    let toml_value = Converter::json_to_toml(json_value.clone()).unwrap();
+    let converted_back = Converter::toml_to_json(toml_value).unwrap();
+
+    assert!(
+        compare_values(&json_value, &converted_back),
+        "JSON -> TOML -> JSON conversion did not preserve structure"
+    );
+}
+
+#[test]
+fn test_toml_json_toml_roundtrip() {
+    let toml_input = read_test_file("tests/input/file.toml");
+    let mut toml_parser = TomlParser::new(&toml_input).unwrap();
+    let toml_value = toml_parser.parse().unwrap();
+
+    let json_value = Converter::toml_to_json(toml_value.clone()).unwrap();
+    let converted_back = Converter::json_to_toml(json_value).unwrap();
+
+    assert!(
+        compare_values(&toml_value, &converted_back),
+        "TOML -> JSON -> TOML conversion did not preserve structure"
+    );
+}

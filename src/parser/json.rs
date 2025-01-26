@@ -37,7 +37,6 @@ impl JsonParser {
     }
 
     /// Parses a complete JSON document
-    /// 
     /// # Returns
     /// - Ok(Value) containing the parsed document structure
     /// - Err if the input is not valid JSON

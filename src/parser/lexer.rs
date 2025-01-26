@@ -1,35 +1,37 @@
 //! Lexical analyzer for parsing JSON and TOML documents.
 //!
-//! The lexer converts raw input text into a stream of tokens that can be
-//! consumed by the parser. It handles:
-//! - Basic token recognition
-//! - String parsing with escape sequences
-//! - Number parsing
-//! - Whitespace skipping
-//! - Error reporting with location information
+//! This module is split into smaller files to handle specific tasks like
+//! parsing strings (string_parser.rs) and parsing numbers (number_parser.rs).
+
+pub mod number_parser;
+pub mod string_parser;
+
+use number_parser::read_number;
+use string_parser::read_string;
 
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 
-/// Lexical analyzer that produces tokens from input text
+/// The core Lexer struct that other modules will use
+#[derive(Debug)]
 pub struct Lexer {
     /// Input text as a character array
-    input: Vec<char>,
+    pub(crate) input: Vec<char>,
     /// Current position in the input
-    position: usize,
+    pub(crate) position: usize,
     /// Current character being processed
-    current_char: Option<char>,
-    /// Whether we're in JSON mode (affects string parsing rules)
-    is_json_mode: bool,
+    pub(crate) current_char: Option<char>,
+    /// Whether we're in JSON mode (affects string quoting rules, bare keys, etc.)
+    pub(crate) is_json_mode: bool,
 }
 
 impl Lexer {
     /// Creates a new TOML lexer from input text
     pub fn new(input: &str) -> Self {
-        let input: Vec<char> = input.chars().collect();
-        let current_char = input.first().copied();
+        let input_vec: Vec<char> = input.chars().collect();
+        let current_char = input_vec.first().copied();
         Self {
-            input,
+            input: input_vec,
             position: 0,
             current_char,
             is_json_mode: false,
@@ -44,7 +46,7 @@ impl Lexer {
     }
 
     /// Moves to the next character in the input
-    fn advance(&mut self) {
+    pub(crate) fn advance(&mut self) {
         self.position += 1;
         self.current_char = self.input.get(self.position).copied();
     }
@@ -57,104 +59,6 @@ impl Lexer {
             }
             self.advance();
         }
-    }
-
-    /// Reads a string from the input
-    fn read_string(&mut self) -> Result<String> {
-        let mut result = String::new();
-        // Skip the opening quote
-        self.advance();
-
-        while let Some(c) = self.current_char {
-            match c {
-                '"' => {
-                    self.advance(); // Skip closing quote
-                    return Ok(result);
-                }
-                '\\' => {
-                    self.advance();
-                    match self.current_char {
-                        Some(escape_char) => {
-                            let escaped = match escape_char {
-                                'n' => '\n',
-                                'r' => '\r',
-                                't' => '\t',
-                                '\\' => '\\',
-                                '"' => '"',
-                                _ => {
-                                    return Err(ParseError::new(ParseErrorKind::InvalidEscape(
-                                        escape_char,
-                                    )))
-                                }
-                            };
-                            result.push(escaped);
-                            self.advance();
-                        }
-                        None => return Err(ParseError::new(ParseErrorKind::UnexpectedEOF)),
-                    }
-                }
-                _ => {
-                    result.push(c);
-                    self.advance();
-                }
-            }
-        }
-        Err(ParseError::new(ParseErrorKind::UnexpectedEOF))
-    }
-
-    /// Reads a number from the input
-    fn read_number(&mut self) -> Result<f64> {
-        let mut number_str = String::new();
-        let mut is_float = false;
-        let mut has_digits = false;
-        let mut previous_char_was_underscore = false;
-
-        // Handle negative numbers
-        if self.current_char == Some('-') {
-            number_str.push('-');
-            self.advance();
-        }
-
-        // Handle main part of the number
-        while let Some(c) = self.current_char {
-            match c {
-                '0'..='9' => {
-                    number_str.push(c);
-                    has_digits = true;
-                    previous_char_was_underscore = false;
-                    self.advance();
-                }
-                '_' => {
-                    if !has_digits || previous_char_was_underscore {
-                        return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
-                    }
-                    // Skip underscore but remember we saw it
-                    previous_char_was_underscore = true;
-                    self.advance();
-                }
-                '.' => {
-                    if is_float || previous_char_was_underscore {
-                        return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
-                    }
-                    is_float = true;
-                    previous_char_was_underscore = false;
-                    number_str.push(c);
-                    self.advance();
-                }
-                _ => break,
-            }
-        }
-
-        if !has_digits {
-            return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
-        }
-
-        // Remove underscores before parsing
-        let clean_number_str: String = number_str.chars().filter(|&c| c != '_').collect();
-
-        clean_number_str
-            .parse::<f64>()
-            .map_err(|_| ParseError::new(ParseErrorKind::InvalidNumber(number_str)))
     }
 
     /// Produces the next token from the input
@@ -197,23 +101,27 @@ impl Lexer {
                     Ok(Token::Dot)
                 }
                 '"' => {
-                    let s = self.read_string()?;
+                    // Route to dedicated string parsing
+                    let s = read_string(self)?;
                     Ok(Token::String(s))
                 }
                 '0'..='9' | '-' | '_' => {
-                    let n = self.read_number()?;
+                    // Route to dedicated number parsing
+                    let n = read_number(self)?;
                     Ok(Token::Number(n))
                 }
                 't' => self.read_true_or_identifier(),
                 'f' => self.read_false_or_identifier(),
                 'n' => self.read_null_or_identifier(),
                 _ if Self::is_bare_key_start(c) => {
+                    // In JSON mode, we forbid bare keys
                     if self.is_json_mode {
                         Err(ParseError::new(ParseErrorKind::InvalidToken(format!(
-                            "Unexpected character: {}. JSON strings must be quoted",
+                            "Unexpected char '{}'. JSON requires quoted strings",
                             c
                         ))))
                     } else {
+                        // Parse a bare key
                         let s = self.read_bare_key()?;
                         Ok(Token::String(s))
                     }
@@ -223,20 +131,15 @@ impl Lexer {
         }
     }
 
-    /// Checks if a character is a valid start for a bare key
     fn is_bare_key_start(c: char) -> bool {
         c.is_ascii_alphabetic() || c == '_'
     }
-
-    /// Checks if a character is a valid part of a bare key
     fn is_bare_key_char(c: char) -> bool {
         c.is_ascii_alphanumeric() || c == '_' || c == '-'
     }
 
-    /// Reads a bare key from the input
     fn read_bare_key(&mut self) -> Result<String> {
         let mut key = String::new();
-
         while let Some(c) = self.current_char {
             if Self::is_bare_key_char(c) {
                 key.push(c);
@@ -245,7 +148,6 @@ impl Lexer {
                 break;
             }
         }
-
         if key.is_empty() {
             Err(ParseError::new(ParseErrorKind::InvalidKey(
                 "Empty key".to_string(),
@@ -255,18 +157,15 @@ impl Lexer {
         }
     }
 
-    /// Reads "true" or an identifier from the input
     fn read_true_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
-        // Safely get the current character
         if let Some(c) = self.current_char {
             value.push(c);
+            self.advance();
         } else {
             return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
         }
-        self.advance();
-
-        // Try to read "true"
+        // Attempt “true”
         if self.current_char == Some('r') {
             value.push('r');
             self.advance();
@@ -276,15 +175,14 @@ impl Lexer {
                 if self.current_char == Some('e') {
                     value.push('e');
                     self.advance();
-                    // Check if the next character is not a valid identifier character
+                    // Must not continue to a valid identifier char
                     if !self.current_char.is_some_and(Self::is_bare_key_char) {
                         return Ok(Token::Boolean(true));
                     }
                 }
             }
         }
-
-        // If it's not "true", read it as an identifier
+        // Otherwise, read remainder as identifier
         while let Some(c) = self.current_char {
             if !Self::is_bare_key_char(c) {
                 break;
@@ -295,18 +193,15 @@ impl Lexer {
         Ok(Token::String(value))
     }
 
-    /// Reads "false" or an identifier from the input
     fn read_false_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
-        // Safely get the current character
         if let Some(c) = self.current_char {
             value.push(c);
+            self.advance();
         } else {
             return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
         }
-        self.advance();
-
-        // Try to read "false"
+        // Attempt “false”
         if self.current_char == Some('a') {
             value.push('a');
             self.advance();
@@ -319,7 +214,6 @@ impl Lexer {
                     if self.current_char == Some('e') {
                         value.push('e');
                         self.advance();
-                        // Check if the next character is not a valid identifier character
                         if !self.current_char.is_some_and(Self::is_bare_key_char) {
                             return Ok(Token::Boolean(false));
                         }
@@ -327,8 +221,7 @@ impl Lexer {
                 }
             }
         }
-
-        // If it's not "false", read it as an identifier
+        // Otherwise, identifier
         while let Some(c) = self.current_char {
             if !Self::is_bare_key_char(c) {
                 break;
@@ -339,33 +232,32 @@ impl Lexer {
         Ok(Token::String(value))
     }
 
-    /// Reads "null" or an identifier from the input
     fn read_null_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
-
-        // Read "null"
-        if self.current_char == Some('n') {
-            value.push('n');
+        // We already have 'n'
+        if let Some(c) = self.current_char {
+            value.push(c);
             self.advance();
-            if self.current_char == Some('u') {
-                value.push('u');
+        } else {
+            return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
+        }
+        // Attempt “null”
+        if self.current_char == Some('u') {
+            value.push('u');
+            self.advance();
+            if self.current_char == Some('l') {
+                value.push('l');
                 self.advance();
                 if self.current_char == Some('l') {
                     value.push('l');
                     self.advance();
-                    if self.current_char == Some('l') {
-                        value.push('l');
-                        self.advance();
-                        // Check if the next character is not a valid identifier character
-                        if !self.current_char.is_some_and(Self::is_bare_key_char) {
-                            return Ok(Token::Null);
-                        }
+                    if !self.current_char.is_some_and(Self::is_bare_key_char) {
+                        return Ok(Token::Null);
                     }
                 }
             }
         }
-
-        // If it's not "null", read it as an identifier
+        // Otherwise, read remainder as identifier
         while let Some(c) = self.current_char {
             if !Self::is_bare_key_char(c) {
                 break;

@@ -1,3 +1,21 @@
+//! # zParse
+//!
+//! A Rust library for parsing JSON and TOML files with inter-conversion support.
+//!
+//! ## Features
+//! - Parse JSON and TOML files
+//! - Convert between JSON and TOML formats
+//! - Formatting support
+//! - Error handling with detailed messages
+//!
+//! ## Usage
+//! ```rust
+//! use zparse::{parse_file, Value};
+//!
+//! let value = parse_file("config.json")?;
+//! // Work with parsed value
+//! ```
+
 use clap::Parser;
 use std::path::Path;
 use zparse::{

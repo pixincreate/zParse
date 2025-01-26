@@ -118,7 +118,7 @@ impl TomlParser {
                 Some(Value::Table(_)) => {
                     current = match current.get_mut(key) {
                         Some(Value::Table(table)) => table,
-                        _ => return Err(ParseError::new(ParseErrorKind::NestedTableError),)
+                        _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
                     };
                 }
                 Some(_) => {
@@ -147,12 +147,18 @@ impl TomlParser {
     fn parse_key_value(&mut self) -> Result<()> {
         let key = match &self.current_token {
             Token::String(s) => s.clone(),
-            _ => return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected key".to_string()))),
+            _ => {
+                return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                    "Expected key".to_string(),
+                )))
+            }
         };
         self.advance()?;
 
         if self.current_token != Token::Equals {
-            return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected =".to_string())));
+            return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                "Expected =".to_string(),
+            )));
         }
         self.advance()?;
 
@@ -221,11 +227,17 @@ impl TomlParser {
                 Token::Comma => {
                     self.advance()?;
                     if self.current_token == Token::RightBracket {
-                        return Err(ParseError::new(ParseErrorKind::InvalidValue("Trailing comma".to_string())));
+                        return Err(ParseError::new(ParseErrorKind::InvalidValue(
+                            "Trailing comma".to_string(),
+                        )));
                     }
                 }
                 Token::RightBracket => break,
-                _ => return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected , or ]".to_string()))),
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                        "Expected , or ]".to_string(),
+                    )))
+                }
             }
         }
 
@@ -245,12 +257,18 @@ impl TomlParser {
         loop {
             let key = match self.current_token {
                 Token::String(ref s) => s.clone(),
-                _ => return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected key".to_string()))),
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                        "Expected key".to_string(),
+                    )))
+                }
             };
             self.advance()?;
 
             if self.current_token != Token::Equals {
-                return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected =".to_string())));
+                return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                    "Expected =".to_string(),
+                )));
             }
             self.advance()?;
 
@@ -265,7 +283,11 @@ impl TomlParser {
                     self.advance()?;
                     break;
                 }
-                _ => return Err(ParseError::new(ParseErrorKind::UnexpectedToken("Expected , or }".to_string()))),
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                        "Expected , or }".to_string(),
+                    )))
+                }
             }
         }
 

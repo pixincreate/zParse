@@ -61,7 +61,11 @@ impl Lexer {
                                 't' => '\t',
                                 '\\' => '\\',
                                 '"' => '"',
-                                _ => return Err(ParseError::new(ParseErrorKind::InvalidEscape(escape_char))),
+                                _ => {
+                                    return Err(ParseError::new(ParseErrorKind::InvalidEscape(
+                                        escape_char,
+                                    )))
+                                }
                             };
                             result.push(escaped);
                             self.advance();
@@ -218,7 +222,9 @@ impl Lexer {
         }
 
         if key.is_empty() {
-            Err(ParseError::new(ParseErrorKind::InvalidKey("Empty key".to_string())))
+            Err(ParseError::new(ParseErrorKind::InvalidKey(
+                "Empty key".to_string(),
+            )))
         } else {
             Ok(key)
         }

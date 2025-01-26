@@ -1,14 +1,30 @@
+//! Lexical analyzer for parsing JSON and TOML documents.
+//!
+//! The lexer converts raw input text into a stream of tokens that can be
+//! consumed by the parser. It handles:
+//! - Basic token recognition
+//! - String parsing with escape sequences
+//! - Number parsing
+//! - Whitespace skipping
+//! - Error reporting with location information
+
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 
+/// Lexical analyzer that produces tokens from input text
 pub struct Lexer {
+    /// Input text as a character array
     input: Vec<char>,
+    /// Current position in the input
     position: usize,
+    /// Current character being processed
     current_char: Option<char>,
+    /// Whether we're in JSON mode (affects string parsing rules)
     is_json_mode: bool,
 }
 
 impl Lexer {
+    /// Creates a new TOML lexer from input text
     pub fn new(input: &str) -> Self {
         let input: Vec<char> = input.chars().collect();
         let current_char = input.first().copied();
@@ -20,17 +36,20 @@ impl Lexer {
         }
     }
 
+    /// Creates a new JSON lexer from input text
     pub fn new_json(input: &str) -> Self {
         let mut lexer = Self::new(input);
         lexer.is_json_mode = true;
         lexer
     }
 
+    /// Moves to the next character in the input
     fn advance(&mut self) {
         self.position += 1;
         self.current_char = self.input.get(self.position).copied();
     }
 
+    /// Skips whitespace characters in the input
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.current_char {
             if !c.is_whitespace() {
@@ -40,6 +59,7 @@ impl Lexer {
         }
     }
 
+    /// Reads a string from the input
     fn read_string(&mut self) -> Result<String> {
         let mut result = String::new();
         // Skip the opening quote
@@ -82,6 +102,7 @@ impl Lexer {
         Err(ParseError::new(ParseErrorKind::UnexpectedEOF))
     }
 
+    /// Reads a number from the input
     fn read_number(&mut self) -> Result<f64> {
         let mut number_str = String::new();
         let mut is_float = false;
@@ -136,6 +157,7 @@ impl Lexer {
             .map_err(|_| ParseError::new(ParseErrorKind::InvalidNumber(number_str)))
     }
 
+    /// Produces the next token from the input
     pub fn next_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
 
@@ -201,14 +223,17 @@ impl Lexer {
         }
     }
 
+    /// Checks if a character is a valid start for a bare key
     fn is_bare_key_start(c: char) -> bool {
         c.is_ascii_alphabetic() || c == '_'
     }
 
+    /// Checks if a character is a valid part of a bare key
     fn is_bare_key_char(c: char) -> bool {
         c.is_ascii_alphanumeric() || c == '_' || c == '-'
     }
 
+    /// Reads a bare key from the input
     fn read_bare_key(&mut self) -> Result<String> {
         let mut key = String::new();
 
@@ -230,6 +255,7 @@ impl Lexer {
         }
     }
 
+    /// Reads "true" or an identifier from the input
     fn read_true_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
         // Safely get the current character
@@ -269,6 +295,7 @@ impl Lexer {
         Ok(Token::String(value))
     }
 
+    /// Reads "false" or an identifier from the input
     fn read_false_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
         // Safely get the current character
@@ -312,6 +339,7 @@ impl Lexer {
         Ok(Token::String(value))
     }
 
+    /// Reads "null" or an identifier from the input
     fn read_null_or_identifier(&mut self) -> Result<Token> {
         let mut value = String::new();
 

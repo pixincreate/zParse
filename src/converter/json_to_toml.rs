@@ -1,3 +1,10 @@
+//! Converts JSON values to TOML format.
+//!
+//! Handles the complexities of converting between formats including:
+//! - Structural differences between JSON and TOML
+//! - Type mapping between formats
+//! - Validation of TOML restrictions
+
 use crate::error::{ParseError, ParseErrorKind, Result};
 use crate::parser::Value;
 use std::collections::HashMap;
@@ -5,6 +12,14 @@ use std::collections::HashMap;
 pub struct JsonToTomlConverter;
 
 impl JsonToTomlConverter {
+    /// Converts a JSON value to TOML format
+    ///
+    /// # Arguments
+    /// * `json_value` - The JSON value to convert
+    ///
+    /// # Returns
+    /// * `Ok(Value)` - The converted TOML value
+    /// * `Err` - If the JSON structure cannot be represented in TOML
     pub fn convert(json_value: Value) -> Result<Value> {
         match json_value {
             Value::Object(map) => Self::convert_object(map),
@@ -14,6 +29,7 @@ impl JsonToTomlConverter {
         }
     }
 
+    /// Converts a JSON object to a TOML table
     fn convert_object(map: HashMap<String, Value>) -> Result<Value> {
         let mut toml_map = HashMap::new();
 
@@ -45,6 +61,7 @@ impl JsonToTomlConverter {
         Ok(Value::Table(toml_map))
     }
 
+    /// Converts an array element to TOML format
     fn convert_array_element(value: Value) -> Result<Value> {
         match value {
             Value::Object(map) => Self::convert_object(map),

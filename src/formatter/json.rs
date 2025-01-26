@@ -1,3 +1,9 @@
+//! Pretty printer for JSON values.
+//!
+//! Provides configurable formatting including:
+//! - Indentation control
+//! - Key sorting
+//! - Array formatting
 use super::{FormatConfig, Formatter};
 use crate::parser::Value;
 use std::collections::HashMap;
@@ -5,12 +11,21 @@ use std::collections::HashMap;
 pub struct JsonFormatter;
 
 impl Formatter for JsonFormatter {
+    /// Formats a Value as a JSON string
+    ///
+    /// # Arguments
+    /// * `value` - The value to format
+    /// * `config` - Formatting configuration
+    ///
+    /// # Returns
+    /// A pretty-printed JSON string
     fn format(&self, value: &Value, config: &FormatConfig) -> String {
         Self::format_value(value, 0, config)
     }
 }
 
 impl JsonFormatter {
+    /// Formats a specific value with the given indentation level
     fn format_value(value: &Value, indent: usize, config: &FormatConfig) -> String {
         match value {
             Value::Null => "null".to_string(),
@@ -23,6 +38,7 @@ impl JsonFormatter {
         }
     }
 
+    /// Formats an array with the given indentation level
     fn format_array(arr: &[Value], indent: usize, config: &FormatConfig) -> String {
         if arr.is_empty() {
             return "[]".to_string();
@@ -45,6 +61,7 @@ impl JsonFormatter {
         format!("[\n{}\n{}]", items.join(",\n"), indent_str)
     }
 
+    /// Formats an object with the given indentation level
     fn format_object(map: &HashMap<String, Value>, indent: usize, config: &FormatConfig) -> String {
         if map.is_empty() {
             return "{}".to_string();

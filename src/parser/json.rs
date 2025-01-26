@@ -1,14 +1,27 @@
+// parser/json.rs
+//! JSON parser implementation.
+//!
+//! This module provides a recursive descent parser for JSON documents that:
+//! - Validates JSON syntax
+//! - Constructs a type-safe value tree
+//! - Provides detailed error messages
+//! - Handles nested structures with proper depth checking
+
 use super::{lexer::Lexer, value::Value};
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 use std::collections::HashMap;
 
+/// Parser for JSON documents
 pub struct JsonParser {
+    /// Lexer that provides tokens
     lexer: Lexer,
+    /// Current token being processed
     current_token: Token,
 }
 
 impl JsonParser {
+    /// Creates a new JSON parser for the given input
     pub fn new(input: &str) -> Result<Self> {
         let mut lexer = Lexer::new_json(input); // Use new_json instead of new
         let current_token = lexer.next_token()?;
@@ -23,6 +36,11 @@ impl JsonParser {
         Ok(())
     }
 
+    /// Parses a complete JSON document
+    /// 
+    /// # Returns
+    /// - Ok(Value) containing the parsed document structure
+    /// - Err if the input is not valid JSON
     pub fn parse(&mut self) -> Result<Value> {
         let value = self.parse_value()?;
 
@@ -36,6 +54,7 @@ impl JsonParser {
         Ok(value)
     }
 
+    /// Parses a JSON value
     fn parse_value(&mut self) -> Result<Value> {
         match self.current_token {
             Token::LeftBrace => self.parse_object(),
@@ -67,6 +86,7 @@ impl JsonParser {
         }
     }
 
+    /// Parses a JSON object
     fn parse_object(&mut self) -> Result<Value> {
         let mut map = HashMap::new();
         self.advance()?; // consume '{'
@@ -141,6 +161,7 @@ impl JsonParser {
         Ok(Value::Object(map))
     }
 
+    /// Parses a JSON array
     fn parse_array(&mut self) -> Result<Value> {
         let mut array = Vec::new();
         self.advance()?; // consume '['

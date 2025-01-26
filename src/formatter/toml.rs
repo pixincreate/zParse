@@ -1,3 +1,9 @@
+//! Pretty printer for TOML values.
+//!
+//! Provides configurable formatting including:
+//! - Indentation control
+//! - Key sorting
+//! - Array formatting
 use super::{FormatConfig, Formatter};
 use crate::parser::Value;
 use std::collections::HashMap;
@@ -14,6 +20,7 @@ impl Formatter for TomlFormatter {
 }
 
 impl TomlFormatter {
+    /// Formats a specific value with the given indentation level
     fn format_table(
         map: &HashMap<String, Value>,
         path: Vec<String>,
@@ -68,6 +75,7 @@ impl TomlFormatter {
         result
     }
 
+    /// Checks if an array contains any tables
     fn is_table_array(arr: &[Value]) -> bool {
         // No change needed here
         arr.iter().any(|v| matches!(v, Value::Table(_)))

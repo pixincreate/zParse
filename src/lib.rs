@@ -1,3 +1,22 @@
+//! zParse: A zero-dependency parser for JSON and TOML formats
+//!
+//! This crate provides functionality to:
+//! - Parse JSON and TOML documents
+//! - Convert between JSON and TOML formats
+//! - Pretty print parsed documents
+//! - Handle errors with detailed context
+//!
+//! # Examples
+//! ```
+//! use zparse::{parse_file, Result};
+//!
+//! fn example() -> Result<()> {
+//!     let value = parse_file("config.json")?;
+//!     println!("Parsed value: {}", value);
+//!     Ok(())
+//! }
+//! ```
+
 use tracing::{debug, error, info, instrument, warn};
 
 pub mod converter;

@@ -13,6 +13,7 @@ pub struct FormatConfig {
     pub sort_keys: bool,
 }
 
+/// Default configuration for formatting
 impl Default for FormatConfig {
     fn default() -> Self {
         Self {
@@ -22,6 +23,7 @@ impl Default for FormatConfig {
     }
 }
 
+/// Trait for formatting a Value as a string
 pub trait Formatter {
     fn format(&self, value: &Value, config: &FormatConfig) -> String;
 }

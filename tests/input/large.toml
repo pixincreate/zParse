@@ -1,0 +1,18 @@
+array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+string = "Hello, World!"
+number = 42
+boolean = true
+
+[object]
+field1 = "value1"
+field2 = "value2"
+field3 = "value3"
+field4 = "value4"
+field5 = "value5"
+
+[object.nested]
+a = 1
+b = 2
+c = 3
+d = 4
+e = 5

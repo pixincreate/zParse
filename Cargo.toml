@@ -19,6 +19,24 @@ criterion = "0.5"
 [[bench]]
 name = "parser_benchmarks"
 harness = false
+[package.metadata]
+cargo-fuzz = true
+
+[[fuzz.targets]]
+name = "json_parser"
+path = "fuzz/fuzz_targets/json_parser.rs"
+
+[[fuzz.targets]] 
+name = "toml_parser"
+path = "fuzz/fuzz_targets/toml_parser.rs"
+
+[[fuzz.targets]]
+name = "json_converter" 
+path = "fuzz/fuzz_targets/json_converter.rs"
+
+[[fuzz.targets]]
+name = "toml_converter"
+path = "fuzz/fuzz_targets/toml_converter.rs"
 
 [lints.rust]
 unsafe_code = "forbid"

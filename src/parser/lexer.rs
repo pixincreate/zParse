@@ -1,4 +1,4 @@
-use super::token::Token;
+use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 
 pub struct Lexer {

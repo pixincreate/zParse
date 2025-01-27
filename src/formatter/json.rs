@@ -1,7 +1,4 @@
-use super::{
-    formatter_common::{helpers, CommonFormatter},
-    FormatConfig, Formatter,
-};
+use super::{helpers, CommonFormatter, FormatConfig, Formatter};
 use crate::parser::Value;
 use std::collections::HashMap;
 

@@ -8,6 +8,8 @@ use crate::error::{ParseError, ParseErrorKind, Result};
 use crate::parser::Value;
 use std::collections::HashMap;
 
+/// High-level “Converter” utility struct that delegates to the specialized 
+/// implementations for JSON↔TOML conversions.
 pub struct Converter;
 
 impl Converter {

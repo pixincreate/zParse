@@ -1,7 +1,6 @@
 pub mod config;
 pub mod json;
 pub mod lexer;
-pub mod token;
 pub mod toml;
 pub mod value;
 

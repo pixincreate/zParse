@@ -5,11 +5,15 @@
 
 #[cfg(test)]
 mod json_tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fs};
     use zparse::{
         converter::Converter,
         parser::{JsonParser, Value},
     };
+
+    fn read_test_file(path: &str) -> String {
+        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path))
+    }
 
     // Basic Parsing Tests
     #[test]
@@ -44,6 +48,17 @@ mod json_tests {
             assert_eq!(parser.parse()?, expected);
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_large_json_parsing_performance() {
+        let large_json = read_test_file("tests/input/large.json");
+        let start = std::time::Instant::now();
+        let mut parser = JsonParser::new(&large_json).unwrap();
+        let _ = parser.parse().unwrap();
+        let duration = start.elapsed();
+        println!("Time taken to parse large JSON: {:?}", duration);
+        assert!(duration.as_secs() < 1, "Parsing took too long");
     }
 
     // Object Tests

@@ -1,3 +1,8 @@
+//! Value types that can represent both JSON and TOML data.
+//!
+//! This module defines a unified Value enum that can represent data from
+//! either format, enabling conversion between them.
+
 use std::collections::HashMap;
 use std::fmt;
 

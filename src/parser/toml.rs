@@ -1,4 +1,5 @@
-use super::{lexer::Lexer, token::Token, value::Value};
+use super::{lexer::Lexer, value::Value};
+use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 use std::collections::HashMap;
 

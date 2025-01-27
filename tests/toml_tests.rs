@@ -5,11 +5,15 @@
 
 #[cfg(test)]
 mod toml_tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fs};
     use zparse::{
         converter::Converter,
         parser::{TomlParser, Value},
     };
+
+    fn read_test_file(path: &str) -> String {
+        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path))
+    }
 
     // Basic Parsing Tests
     #[test]
@@ -114,6 +118,17 @@ mod toml_tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_large_toml_parsing_performance() {
+        let large_toml = read_test_file("tests/input/large.toml");
+        let start = std::time::Instant::now();
+        let mut parser = TomlParser::new(&large_toml).unwrap();
+        let _ = parser.parse().unwrap();
+        let duration = start.elapsed();
+        println!("Time taken to parse large TOML: {:?}", duration);
+        assert!(duration.as_secs() < 1, "Parsing took too long");
     }
 
     // Array Table Tests

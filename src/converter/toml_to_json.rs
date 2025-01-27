@@ -1,40 +1,40 @@
-use crate::error::{ParseError, ParseErrorKind, Result};
+//! Converts TOML values to JSON format.
+//!
+//! Handles the complexities of converting between formats including:
+//! - Structural differences between JSON and TOML
+//! - Type mapping between formats
+//! - Validation of JSON restrictions
+
+use super::FormatConverter;
+use crate::error::Result;
 use crate::parser::Value;
 use std::collections::HashMap;
 
 pub struct TomlToJsonConverter;
 
-impl TomlToJsonConverter {
-    pub fn convert(toml_value: Value) -> Result<Value> {
-        match toml_value {
-            Value::Table(map) | Value::Object(map) => Self::convert_table(map),
-            _ => Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "Root must be a table".to_string(),
-            ))),
-        }
-    }
-
-    fn convert_table(map: HashMap<String, Value>) -> Result<Value> {
+impl FormatConverter for TomlToJsonConverter {
+    fn convert_root(map: HashMap<String, Value>) -> Result<Value> {
         let mut json_map = HashMap::new();
 
         for (key, value) in map {
-            json_map.insert(key, Self::convert_value(value)?);
+            json_map.insert(key, Self::convert_array_element(value)?);
         }
 
         Ok(Value::Object(json_map))
     }
 
-    fn convert_value(value: Value) -> Result<Value> {
+    fn convert_array_element(value: Value) -> Result<Value> {
         Ok(match value {
             Value::Table(map) => Value::Object(map),
-            Value::Array(arr) => {
-                let mut json_arr = Vec::new();
-                for item in arr {
-                    json_arr.push(Self::convert_value(item)?);
-                }
-                Value::Array(json_arr)
-            }
+            Value::Array(arr) => Self::convert_array(arr)?,
             _ => value,
         })
+    }
+}
+
+impl TomlToJsonConverter {
+    pub fn convert(toml_value: Value) -> Result<Value> {
+        let map = Self::validate_root(toml_value)?;
+        Self::convert_root(map)
     }
 }

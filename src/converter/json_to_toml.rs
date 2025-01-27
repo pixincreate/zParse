@@ -5,7 +5,7 @@
 //! - Type mapping between formats
 //! - Validation of TOML restrictions
 
-use super::converter_common::FormatConverter;
+use super::FormatConverter;
 use crate::error::{ParseError, ParseErrorKind, Result};
 use crate::parser::Value;
 use std::collections::HashMap;

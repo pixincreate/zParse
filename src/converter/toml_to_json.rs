@@ -5,7 +5,7 @@
 //! - Type mapping between formats
 //! - Validation of JSON restrictions
 
-use super::converter_common::FormatConverter;
+use super::FormatConverter;
 use crate::error::Result;
 use crate::parser::Value;
 use std::collections::HashMap;

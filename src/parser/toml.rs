@@ -1,25 +1,47 @@
-use super::{lexer::Lexer, value::Value};
+use super::{
+    config::{ParserConfig, ParsingContext},
+    lexer::Lexer,
+    value::Value,
+};
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 use std::collections::HashMap;
 
 pub struct TomlParser {
+    /// Lexer that provides tokens
     lexer: Lexer,
+    /// Current token being processed
     current_token: Token,
+    /// Parsed tables
     tables: HashMap<String, Value>,
+    /// Current table path
     current_table: Vec<String>,
+    /// Parser for TOML documents
+    config: ParserConfig,
+    /// Parsing context for tracking depth and size
+    context: ParsingContext,
 }
 
 impl TomlParser {
     pub fn new(input: &str) -> Result<Self> {
         let mut lexer = Lexer::new(input);
         let current_token = lexer.next_token()?;
+
+        // Initialize with default config
         Ok(Self {
             lexer,
             current_token,
             tables: HashMap::new(),
             current_table: Vec::new(),
+            config: ParserConfig::default(),
+            context: ParsingContext::new(),
         })
+    }
+
+    /// Setter method to configure the parser
+    pub fn with_config(mut self, config: ParserConfig) -> Self {
+        self.config = config;
+        self
     }
 
     fn advance(&mut self) -> Result<()> {
@@ -50,6 +72,8 @@ impl TomlParser {
     }
 
     fn parse_table_header(&mut self) -> Result<()> {
+        self.context.enter_nested(&self.config)?;
+
         self.advance()?; // consume first '['
         let is_array_table = matches!(self.current_token, Token::LeftBracket);
         if is_array_table {
@@ -57,10 +81,19 @@ impl TomlParser {
         }
 
         let mut path = Vec::new();
+        let mut entry_count = 0;
 
         loop {
             match &self.current_token {
                 Token::String(s) => {
+                    // Validate string length
+                    self.config.validate_string(s)?;
+                    // Track memory usage
+                    self.context.add_size(s.len(), &self.config)?;
+
+                    entry_count += 1;
+                    self.config.validate_object_entries(entry_count)?;
+
                     path.push(s.clone());
                     self.advance()?;
                 }
@@ -93,6 +126,7 @@ impl TomlParser {
             }
         }
 
+        self.context.exit_nested();
         Ok(())
     }
 
@@ -146,8 +180,18 @@ impl TomlParser {
     }
 
     fn parse_key_value(&mut self) -> Result<()> {
+        // Track nesting level for complex values
+        self.context.enter_nested(&self.config)?;
+
         let key = match &self.current_token {
-            Token::String(s) => s.clone(),
+            Token::String(s) => {
+                // Validate string length
+                self.config.validate_string(s)?;
+                // Track memory usage
+                self.context.add_size(s.len(), &self.config)?;
+
+                s.clone()
+            }
             _ => {
                 return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
                     "Expected key".to_string(),
@@ -182,6 +226,7 @@ impl TomlParser {
         }
 
         current.insert(key, value);
+        self.context.exit_nested();
         Ok(())
     }
 
@@ -217,10 +262,17 @@ impl TomlParser {
     }
 
     fn parse_array(&mut self) -> Result<Value> {
+        self.context.enter_nested(&self.config)?;
+
         let mut array = Vec::new();
         self.advance()?; // consume '['
 
+        let mut entry_count = 0;
+
         while self.current_token != Token::RightBracket {
+            entry_count += 1;
+            self.config.validate_object_entries(entry_count)?;
+
             let value = self.parse_value()?;
             array.push(value);
 
@@ -243,21 +295,37 @@ impl TomlParser {
         }
 
         self.advance()?; // consume ']'
+        self.context.exit_nested();
         Ok(Value::Array(array))
     }
 
     fn parse_inline_table(&mut self) -> Result<Value> {
+        self.context.enter_nested(&self.config)?;
+
         let mut map = HashMap::new();
         self.advance()?; // consume '{'
 
+        let mut entry_count = 0;
+
         if self.current_token == Token::RightBrace {
             self.advance()?;
+            self.context.exit_nested();
             return Ok(Value::Table(map));
         }
 
         loop {
-            let key = match self.current_token {
-                Token::String(ref s) => s.clone(),
+            entry_count += 1;
+            self.config.validate_object_entries(entry_count)?;
+
+            let key = match &self.current_token {
+                Token::String(s) => {
+                    // Validate string length
+                    self.config.validate_string(s)?;
+                    // Track memory usage
+                    self.context.add_size(s.len(), &self.config)?;
+
+                    s.clone()
+                }
                 _ => {
                     return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
                         "Expected key".to_string(),
@@ -292,10 +360,13 @@ impl TomlParser {
             }
         }
 
+        self.context.exit_nested();
         Ok(Value::Table(map))
     }
 
     fn get_or_create_array_table(&mut self, path: &[String]) -> Result<()> {
+        self.context.enter_nested(&self.config)?;
+
         let mut current = &mut self.tables;
         let mut temp_path = Vec::new();
 
@@ -320,6 +391,8 @@ impl TomlParser {
                     // Last key - append to array if it exists
                     match current.get_mut(key) {
                         Some(Value::Array(arr)) => {
+                            // Validate array size
+                            self.config.validate_object_entries(arr.len() + 1)?;
                             arr.push(Value::Table(HashMap::new()));
                         }
                         _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
@@ -341,6 +414,7 @@ impl TomlParser {
             };
         }
 
+        self.context.exit_nested();
         Ok(())
     }
 }

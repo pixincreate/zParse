@@ -20,7 +20,7 @@ mod toml_tests {
     fn test_parse_empty_document() -> Result<(), Box<dyn std::error::Error>> {
         let input = "";
         let mut parser = TomlParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Table(HashMap::new()));
+        assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
         Ok(())
     }
 
@@ -35,7 +35,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert_eq!(
                 root.get("string"),
                 Some(&Value::String("value".to_string()))
@@ -68,9 +68,9 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert!(root.contains_key("server"));
-            if let Some(Value::Table(server)) = root.get("server") {
+            if let Some(Value::Map(server)) = root.get("server") {
                 assert_eq!(
                     server.get("host"),
                     Some(&Value::String("localhost".to_string()))
@@ -98,7 +98,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             // Test numbers array
             if let Some(Value::Array(numbers)) = root.get("numbers") {
                 assert_eq!(numbers.len(), 3);
@@ -154,11 +154,11 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             if let Some(Value::Array(people)) = root.get("people") {
                 assert_eq!(people.len(), 2);
                 // Verify first person
-                if let Value::Table(person) = &people[0] {
+                if let Value::Map(person) = &people[0] {
                     assert_eq!(
                         person.get("name"),
                         Some(&Value::String("Alice".to_string()))
@@ -184,7 +184,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert_eq!(root.get("key1"), Some(&Value::String("value1".to_string())));
             assert_eq!(root.get("key2"), Some(&Value::Number(42.0)));
             assert!(root.contains_key("section"));
@@ -215,7 +215,7 @@ mod toml_tests {
         let json_value = Converter::toml_to_json(toml_value)?;
 
         // Verify the conversion maintained the structure
-        if let Value::Object(root) = json_value {
+        if let Value::Map(root) = json_value {
             assert_eq!(root.get("title"), Some(&Value::String("Test".to_string())));
             assert!(root.contains_key("owner"));
             assert!(root.contains_key("items"));

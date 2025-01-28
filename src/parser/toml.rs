@@ -75,7 +75,7 @@ impl TomlParser {
             }
         }
 
-        Ok(Value::Table(self.tables.clone()))
+        Ok(Value::Map(self.tables.clone()))
     }
 
     fn parse_table_header(&mut self) -> Result<()> {
@@ -175,9 +175,9 @@ impl TomlParser {
 
             // Handle existing key
             match current.get(key) {
-                Some(Value::Table(_)) => {
+                Some(Value::Map(_)) => {
                     current = match current.get_mut(key) {
-                        Some(Value::Table(table)) => table,
+                        Some(Value::Map(table)) => table,
                         _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
                     };
                 }
@@ -192,9 +192,9 @@ impl TomlParser {
                 }
                 None => {
                     // Create new table
-                    current.insert(key.clone(), Value::Table(HashMap::new()));
+                    current.insert(key.clone(), Value::Map(HashMap::new()));
                     current = match current.get_mut(key) {
-                        Some(Value::Table(table)) => table,
+                        Some(Value::Map(table)) => table,
                         _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
                     };
                 }
@@ -240,9 +240,9 @@ impl TomlParser {
         let mut current = &mut self.tables;
         for table_key in &self.current_table {
             current = match current.get_mut(table_key) {
-                Some(Value::Table(table)) => table,
+                Some(Value::Map(table)) => table,
                 Some(Value::Array(arr)) => {
-                    if let Some(Value::Table(table)) = arr.last_mut() {
+                    if let Some(Value::Map(table)) = arr.last_mut() {
                         table
                     } else {
                         return Err(ParseError::new(ParseErrorKind::NestedTableError));
@@ -337,7 +337,7 @@ impl TomlParser {
         if self.current_token == Token::RightBrace {
             self.advance()?;
             self.context.exit_nested();
-            return Ok(Value::Table(map));
+            return Ok(Value::Map(map));
         }
 
         loop {
@@ -388,7 +388,7 @@ impl TomlParser {
         }
 
         self.context.exit_nested();
-        Ok(Value::Table(map))
+        Ok(Value::Map(map))
     }
 
     fn get_or_create_array_table(&mut self, path: &[String]) -> Result<()> {
@@ -409,11 +409,11 @@ impl TomlParser {
                     // Last key - create an array
                     current.insert(
                         key.clone(),
-                        Value::Array(vec![Value::Table(HashMap::new())]),
+                        Value::Array(vec![Value::Map(HashMap::new())]),
                     );
                 } else {
                     // Intermediate key - create a table
-                    current.insert(key.clone(), Value::Table(HashMap::new()));
+                    current.insert(key.clone(), Value::Map(HashMap::new()));
                 }
             } else {
                 // Handle existing key
@@ -423,7 +423,7 @@ impl TomlParser {
                         Some(Value::Array(arr)) => {
                             // Validate array size
                             self.config.validate_object_entries(arr.len() + 1)?;
-                            arr.push(Value::Table(HashMap::new()));
+                            arr.push(Value::Map(HashMap::new()));
                         }
                         _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
                     }
@@ -432,9 +432,9 @@ impl TomlParser {
 
             // Move to next level
             current = match current.get_mut(key) {
-                Some(Value::Table(table)) => table,
+                Some(Value::Map(table)) => table,
                 Some(Value::Array(arr)) => {
-                    if let Some(Value::Table(table)) = arr.last_mut() {
+                    if let Some(Value::Map(table)) = arr.last_mut() {
                         table
                     } else {
                         return Err(ParseError::new(ParseErrorKind::NestedTableError));

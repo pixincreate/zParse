@@ -21,7 +21,7 @@ impl CommonConverter for TomlToJsonConverter {
 
     fn convert_value(value: Value) -> Result<Value> {
         match value {
-            Value::Table(map) => Self::convert_map(map),
+            Value::Map(map) => Self::convert_map(map),
             Value::Array(arr) => Self::convert_array(arr),
             _ => Ok(value),
         }

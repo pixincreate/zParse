@@ -130,7 +130,7 @@ impl Lexer {
                         Ok(Token::String(s))
                     }
                 }
-                _ => Err(ParseError::new(ParseErrorKind::InvalidToken(c.to_string()))),
+                _ => Err(ParseError::new(ParseErrorKind::InvalidToken(format!("Unexpected character '{}' at position {}", c, self.position)))),
             },
         }
     }

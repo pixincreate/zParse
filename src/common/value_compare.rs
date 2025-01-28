@@ -2,10 +2,7 @@ use crate::parser::Value;
 
 pub fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::Object(l_map), Value::Object(r_map))
-        | (Value::Table(l_map), Value::Table(r_map))
-        | (Value::Object(l_map), Value::Table(r_map))
-        | (Value::Table(l_map), Value::Object(r_map)) => {
+        (Value::Map(l_map), Value::Map(r_map)) => {
             if l_map.len() != r_map.len() {
                 return false;
             }

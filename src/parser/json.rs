@@ -117,7 +117,7 @@ impl JsonParser {
         if matches!(self.current_token, Token::RightBrace) {
             self.advance()?;
             self.state.exit_nested();
-            return Ok(Value::Object(map));
+            return Ok(Value::Map(map));
         }
 
         loop {
@@ -170,7 +170,7 @@ impl JsonParser {
                 Token::RightBrace => {
                     self.advance()?;
                     self.state.exit_nested();
-                    return Ok(Value::Object(map));
+                    return Ok(Value::Map(map));
                 }
                 _ => {
                     return Err(ParseError::new(ParseErrorKind::UnexpectedToken(

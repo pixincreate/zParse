@@ -9,7 +9,7 @@ impl CommonFormatter for TomlFormatter {}
 impl Formatter for TomlFormatter {
     fn format(&self, value: &Value, config: &FormatConfig) -> String {
         match value {
-            Value::Table(map) => Self::format_table(map, vec![], config),
+            Value::Map(map) => Self::format_table(map, vec![], config),
             _ => Value::to_string(value),
         }
     }
@@ -27,7 +27,7 @@ impl TomlFormatter {
         // Process simple key-value pairs first
         for (key, value) in entries.iter() {
             match value {
-                Value::Table(_) | Value::Array(_) => continue,
+                Value::Map(_) | Value::Array(_) => continue,
                 _ => {
                     result.push_str(&format!("{} = {}\n", key, Self::format_basic_value(value)));
                 }
@@ -37,7 +37,7 @@ impl TomlFormatter {
         // Process tables and arrays
         for (key, value) in entries {
             match value {
-                Value::Table(inner_map) => {
+                Value::Map(inner_map) => {
                     Self::format_regular_table(&mut result, inner_map, key, path.clone(), config);
                 }
                 Value::Array(arr) if Self::is_table_array(arr) => {
@@ -76,7 +76,7 @@ impl TomlFormatter {
         config: &FormatConfig,
     ) {
         for item in arr {
-            if let Value::Table(inner_map) = item {
+            if let Value::Map(inner_map) = item {
                 path.push(key.to_string());
                 result.push_str(&format!("\n[[{}]]\n", path.join(".")));
                 result.push_str(&Self::format_table(inner_map, path.clone(), config));

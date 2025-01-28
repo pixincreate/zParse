@@ -20,7 +20,7 @@ mod json_tests {
     fn test_parse_empty_object() -> Result<(), Box<dyn std::error::Error>> {
         let input = "{}";
         let mut parser = JsonParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Object(HashMap::new()));
+        assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
         Ok(())
     }
 
@@ -73,7 +73,7 @@ mod json_tests {
         expected.insert("age".to_string(), Value::Number(30.0));
         expected.insert("is_student".to_string(), Value::Boolean(false));
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -99,8 +99,8 @@ mod json_tests {
         let value = parser.parse()?;
 
         // Verify structure exists
-        if let Value::Object(root) = value {
-            if let Some(Value::Object(person)) = root.get("person") {
+        if let Value::Map(root) = value {
+            if let Some(Value::Map(person)) = root.get("person") {
                 assert!(person.contains_key("name"));
                 assert!(person.contains_key("contact"));
             } else {
@@ -128,7 +128,7 @@ mod json_tests {
             Value::Boolean(true),
             Value::Null,
             Value::Array(vec![Value::Number(2.5), Value::Boolean(false)]),
-            Value::Object(obj),
+            Value::Map(obj),
         ]);
 
         assert_eq!(value, expected);
@@ -151,7 +151,7 @@ mod json_tests {
         expected.insert("key1".to_string(), Value::String("value1".to_string()));
         expected.insert("key2".to_string(), Value::Number(42.0));
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -167,7 +167,7 @@ mod json_tests {
             Value::String("Hello\nWorld\t\"Escaped\"".to_string()),
         );
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -191,7 +191,7 @@ mod json_tests {
         let toml_value = Converter::json_to_toml(json_value)?;
 
         // Verify the conversion maintained the structure
-        if let Value::Table(root) = toml_value {
+        if let Value::Map(root) = toml_value {
             assert_eq!(root.get("title"), Some(&Value::String("Test".to_string())));
             assert!(root.contains_key("owner"));
             assert!(root.contains_key("database"));

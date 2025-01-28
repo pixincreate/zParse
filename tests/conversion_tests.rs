@@ -17,10 +17,7 @@ fn read_test_file(path: &str) -> String {
 
 fn compare_values(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::Object(l_map), Value::Object(r_map))
-        | (Value::Table(l_map), Value::Table(r_map))
-        | (Value::Object(l_map), Value::Table(r_map))
-        | (Value::Table(l_map), Value::Object(r_map)) => {
+        (Value::Map(l_map), Value::Map(r_map)) => {
             if l_map.len() != r_map.len() {
                 return false;
             }
@@ -129,7 +126,7 @@ fn test_specific_value_conversions() {
     );
 
     // Test specific fields are present and have correct values
-    if let (Value::Object(json_map), Value::Table(toml_map)) = (&json_value, &toml_value) {
+    if let (Value::Map(json_map), Value::Map(toml_map)) = (&json_value, &toml_value) {
         // Check success field
         assert!(compare_values(
             json_map.get("success").unwrap(),

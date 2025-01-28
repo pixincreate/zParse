@@ -28,7 +28,7 @@ impl CommonConverter for JsonToTomlConverter {
 
     fn convert_value(value: Value) -> Result<Value> {
         match value {
-            Value::Object(map) => Self::convert_map(map),
+            Value::Map(map) => Self::convert_map(map),
             Value::Array(arr) => Self::convert_array(arr),
             Value::Null => Err(ParseError::new(ParseErrorKind::InvalidValue(
                 "TOML does not support null".to_string(),

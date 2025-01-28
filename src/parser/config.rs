@@ -1,8 +1,12 @@
 use crate::error::{ParseError, ParseErrorKind, Result};
 
+/// Maximum nesting depth (32) based on common JSON/TOML usage patterns
 pub const DEFAULT_MAX_DEPTH: usize = 32;
+/// Maximum input size (1MB) to prevent memory exhaustion attacks
 pub const DEFAULT_MAX_SIZE: usize = 1_048_576; // 1MB
+/// Maximum string length (100KB) to prevent buffer overflows
 pub const DEFAULT_MAX_STRING_LENGTH: usize = 102_400; // 100KB
+/// Maximum number of object entries (1K) to prevent abuse
 pub const DEFAULT_MAX_OBJECT_ENTRIES: usize = 1_000;
 
 /// Configuration for parser limits and validation

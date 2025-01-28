@@ -16,7 +16,7 @@ impl JsonFormatter {
     fn format_value(value: &Value, indent: usize, config: &FormatConfig) -> String {
         match value {
             Value::Array(arr) => Self::format_array(arr, indent, config),
-            Value::Object(map) | Value::Table(map) => Self::format_object(map, indent, config),
+            Value::Map(map) => Self::format_object(map, indent, config),
             _ => Self::format_basic_value(value),
         }
     }

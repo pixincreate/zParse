@@ -11,6 +11,7 @@ use string_parser::read_string;
 
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::parser::config::ParserConfig;
 
 /// The core Lexer struct that other modules will use
 #[derive(Debug)]
@@ -23,6 +24,8 @@ pub struct Lexer {
     pub(crate) current_char: Option<char>,
     /// Whether we're in JSON mode (affects string quoting rules, bare keys, etc.)
     pub(crate) is_json_mode: bool,
+    /// Configuration for the parser
+    pub(crate) config: ParserConfig,
 }
 
 impl Lexer {
@@ -35,6 +38,7 @@ impl Lexer {
             position: 0,
             current_char,
             is_json_mode: false,
+            config: ParserConfig::default(),
         }
     }
 

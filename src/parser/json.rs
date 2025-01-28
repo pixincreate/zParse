@@ -7,30 +7,31 @@
 //! - Provides detailed error messages
 //! - Handles nested structures with proper depth checking
 
-use super::{
-    config::{ParserConfig, ParsingContext},
-    lexer::Lexer,
-    value::Value,
-};
+use super::config::ParserConfig;
+use crate::common::parser_state::ParserState;
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::parser::{lexer::Lexer, value::Value};
 use std::collections::HashMap;
 
-/// Parser for JSON documents
+#[derive(Debug)]
 pub struct JsonParser {
     /// Lexer that provides tokens
     lexer: Lexer,
     /// Current token being processed
     current_token: Token,
-    /// Parser configuration
-    config: ParserConfig,
-    /// Parsing context for tracking depth and size
-    context: ParsingContext,
+    /// Parser state for tracking context
+    state: ParserState,
 }
 
 impl JsonParser {
     /// Creates a new JSON parser for the given input
     pub fn new(input: &str) -> Result<Self> {
+        let state = ParserState::new();
+
+        // Check input size first
+        state.validate_input_size(input.len())?;
+
         let mut lexer = Lexer::new_json(input);
         let current_token = lexer.next_token()?;
 
@@ -38,14 +39,13 @@ impl JsonParser {
         Ok(Self {
             lexer,
             current_token,
-            config: ParserConfig::default(),
-            context: ParsingContext::new(),
+            state,
         })
     }
 
     /// Setter method to configure the parser
     pub fn with_config(mut self, config: ParserConfig) -> Self {
-        self.config = config;
+        self.state = ParserState::with_config(config);
         self
     }
 
@@ -73,21 +73,21 @@ impl JsonParser {
 
     /// Parses a JSON value
     fn parse_value(&mut self) -> Result<Value> {
-        match self.current_token {
+        match &self.current_token {
             Token::LeftBrace => self.parse_object(),
             Token::LeftBracket => self.parse_array(),
-            Token::String(ref s) => {
+            Token::String(s) => {
                 let value = Value::String(s.clone());
                 self.advance()?;
                 Ok(value)
             }
             Token::Number(n) => {
-                let value = Value::Number(n);
+                let value = Value::Number(*n);
                 self.advance()?;
                 Ok(value)
             }
             Token::Boolean(b) => {
-                let value = Value::Boolean(b);
+                let value = Value::Boolean(*b);
                 self.advance()?;
                 Ok(value)
             }
@@ -97,7 +97,7 @@ impl JsonParser {
                 Ok(value)
             }
             _ => Err(ParseError::new(ParseErrorKind::UnexpectedToken(format!(
-                "{:?}",
+                "Unexpected token: {:?}",
                 self.current_token
             )))),
         }
@@ -105,137 +105,126 @@ impl JsonParser {
 
     /// Parses a JSON object
     fn parse_object(&mut self) -> Result<Value> {
-        // Track nested depth
-        self.context.enter_nested(&self.config)?;
+        // Enter nested context and check depth
+        self.state.enter_nested()?;
 
         let mut map = HashMap::new();
         self.advance()?; // consume '{'
 
-        if self.current_token == Token::EOF {
-            return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
-        }
+        let mut entry_count = 0;
 
         // Handle empty object
-        if self.current_token == Token::RightBrace {
+        if matches!(self.current_token, Token::RightBrace) {
             self.advance()?;
-            self.context.exit_nested();
+            self.state.exit_nested();
             return Ok(Value::Object(map));
         }
-
-        // Track number of entries
-        let mut entry_count = 0;
 
         loop {
             // Validate entry count
             entry_count += 1;
-            self.config.validate_object_entries(entry_count)?;
+            self.state.validate_object_entries(entry_count)?;
 
-            // Parse key and value...
-            let key = self.parse_string()?;
-            // Validate string length
-            self.config.validate_string(&key)?;
+            // Parse key
+            let key = match &self.current_token {
+                Token::String(s) => {
+                    self.state.validate_string(s)?;
+                    s.clone()
+                }
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                        "Expected string key".to_string(),
+                    )))
+                }
+            };
+            self.advance()?;
 
             // Expect colon
             if self.current_token != Token::Colon {
                 return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
-                    "Expected colon".to_string(),
+                    "Expected :".to_string(),
                 )));
             }
             self.advance()?;
 
-            if self.current_token == Token::EOF {
-                return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
-            }
-
             // Parse value
             let value = self.parse_value()?;
+
+            // Check for duplicate keys
+            if map.contains_key(&key) {
+                return Err(ParseError::new(ParseErrorKind::DuplicateKey(key)));
+            }
+
             map.insert(key, value);
 
             // Handle comma or end of object
             match self.current_token {
                 Token::Comma => {
                     self.advance()?;
-                    if self.current_token == Token::RightBrace {
-                        return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                            "Trailing comma".to_string(),
+                    if matches!(self.current_token, Token::RightBrace) {
+                        return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                            "Trailing comma in object".to_string(),
                         )));
                     }
                 }
                 Token::RightBrace => {
                     self.advance()?;
-                    break;
+                    self.state.exit_nested();
+                    return Ok(Value::Object(map));
                 }
-                Token::EOF => return Err(ParseError::new(ParseErrorKind::UnexpectedEOF)),
                 _ => {
                     return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
-                        "Expected comma or }".to_string(),
+                        "Expected , or }".to_string(),
                     )))
                 }
             }
         }
-
-        self.context.exit_nested();
-        Ok(Value::Object(map))
     }
 
     /// Parses a JSON array
     fn parse_array(&mut self) -> Result<Value> {
-        self.context.enter_nested(&self.config)?;
+        // Enter nested context and check depth
+        self.state.enter_nested()?;
+
         let mut array = Vec::new();
         self.advance()?; // consume '['
 
         // Handle empty array
-        if self.current_token == Token::RightBracket {
+        if matches!(self.current_token, Token::RightBracket) {
             self.advance()?;
+            self.state.exit_nested();
             return Ok(Value::Array(array));
         }
 
         loop {
+            // Track array size
+            self.state.add_size(1)?;
+
+            // Parse array element
             let value = self.parse_value()?;
             array.push(value);
 
+            // Handle comma or end of array
             match self.current_token {
                 Token::Comma => {
                     self.advance()?;
-                    if self.current_token == Token::RightBracket {
-                        return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                            "Trailing comma".to_string(),
+                    if matches!(self.current_token, Token::RightBracket) {
+                        return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
+                            "Trailing comma in array".to_string(),
                         )));
                     }
                 }
                 Token::RightBracket => {
                     self.advance()?;
-                    break;
+                    self.state.exit_nested();
+                    return Ok(Value::Array(array));
                 }
                 _ => {
                     return Err(ParseError::new(ParseErrorKind::UnexpectedToken(
-                        "Expected comma or ]".to_string(),
+                        "Expected , or ]".to_string(),
                     )))
                 }
             }
-        }
-
-        self.context.exit_nested();
-        Ok(Value::Array(array))
-    }
-
-    /// Parses a JSON string
-    fn parse_string(&mut self) -> Result<String> {
-        match self.current_token {
-            Token::String(ref s) => {
-                // Validate string length
-                self.config.validate_string(s)?;
-
-                // Track memory usage
-                self.context.add_size(s.len(), &self.config)?;
-
-                let value = s.clone();
-                self.advance()?;
-                Ok(value)
-            }
-            _ => Err(ParseError::new(ParseErrorKind::UnexpectedToken(
-                "Expected string".to_string(),
-            ))),
         }
     }
 }

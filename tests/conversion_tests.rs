@@ -5,8 +5,9 @@
 
 use std::fs;
 use zparse::{
+    common::value_compare::values_equal,
     parser::{value::Value, JsonParser, TomlParser},
-    utils::{format_json, format_toml},
+    utils::format_json,
     Converter,
 };
 
@@ -50,18 +51,14 @@ fn test_json_to_toml_conversion() {
     let mut json_parser = JsonParser::new(&json_input).unwrap();
     let json_value = json_parser.parse().unwrap();
 
-    let toml_value = Converter::json_to_toml(json_value).unwrap();
-
+    let toml_value = Converter::json_to_toml(json_value.clone()).unwrap();
     let expected_toml = read_test_file("tests/input/file.toml");
     let mut toml_parser = TomlParser::new(&expected_toml).unwrap();
     let expected_value = toml_parser.parse().unwrap();
 
     assert!(
-        compare_values(&toml_value, &expected_value),
-        "JSON to TOML conversion produced unexpected structure.\n\
-         Got:\n{}\n\nExpected:\n{}",
-        format_toml(&toml_value),
-        expected_toml
+        values_equal(&toml_value, &expected_value),
+        "Values don't match after conversion"
     );
 }
 

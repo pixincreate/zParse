@@ -5,14 +5,14 @@
 
 use std::{error::Error, fmt};
 
-/// Represents a parsing error with optional location information
+/// Main error type for parsing operations
 #[derive(Debug)]
 pub struct ParseError {
-    /// The specific kind of error that occurred
+    /// The specific kind of error
     kind: ParseErrorKind,
-    /// Location in the input where the error occurred (if available)
+    /// Location where the error occurred
     location: Option<Location>,
-    /// Optional source error that caused this error
+    /// Source error that caused this error
     source: Option<Box<dyn Error>>,
 }
 
@@ -25,45 +25,62 @@ pub struct Location {
     pub column: usize,
 }
 
-/// Specific types of parsing errors that can occur
-#[derive(Debug)]
+/// Specific categories of parsing errors
+#[derive(Debug, Clone)]
 pub enum ParseErrorKind {
+    // Lexical errors
     /// Found an invalid token in the input
     InvalidToken(String),
     /// Found a valid token in an unexpected position
     UnexpectedToken(String),
     /// Reached end of input unexpectedly
     UnexpectedEOF,
-    /// Invalid number format
+
+    // Number parsing errors
+    /// Found an invalid number format
     InvalidNumber(String),
+    /// Number is too large to be represented
+    NumberOverflow,
+    /// Number is too small to be represented
+    NumberUnderflow,
+
+    // String parsing errors
     /// Invalid string format
     InvalidString(String),
-    /// Invalid boolean value
-    InvalidBoolean,
-    /// Invalid date and time value
-    InvalidDateTime,
-    /// Invalid escape sequence in string
+    /// Invalid escape sequence in a string
     InvalidEscape(char),
-    /// Invalid Unicode escape sequence in string
+    /// Invalid Unicode escape sequence
     InvalidUnicode,
-    /// Invalid array value
-    InvalidValue(String),
-    /// Invalid key in table
+    /// Unterminated string
+    UnterminatedString,
+
+    // Structural errors
+    /// Invalid object key format
     InvalidKey(String),
-    /// Invalid table definition
+    /// Duplicate object key
+    DuplicateKey(String),
+    /// Value passed to a function is not a valid type
+    InvalidValue(String),
+    /// Nested table error (TOML specific)
     NestedTableError,
-    /// Invalid file or extension
-    IoError(String),
-    /// Error reading file
-    UnknownFormat,
-    /// Maximum nesting depth exceeded
+    /// Circular reference detected in the input
+    CircularReference,
+
+    // Security errors
+    /// Exceeded maximum depth of nesting
     MaxDepthExceeded,
-    /// Maximum input size exceeded
+    /// Exceeded maximum input size
     MaxSizeExceeded,
-    /// Maximum string length exceeded
+    /// Exceeded maximum string length
     MaxStringLengthExceeded,
-    /// Maximum number of object entries exceeded
+    /// Exceeded maximum number of object entries
     MaxObjectEntriesExceeded,
+
+    // IO errors
+    /// Error reading from a file
+    IoError(String),
+    /// Error parsing a file due to unknwon format
+    UnknownFormat,
 }
 
 impl ParseError {
@@ -73,6 +90,10 @@ impl ParseError {
             location: None,
             source: None,
         }
+    }
+
+    pub fn kind(&self) -> &ParseErrorKind {
+        &self.kind
     }
 
     pub fn with_location(mut self, line: usize, column: usize) -> Self {
@@ -91,7 +112,32 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.kind)?;
+        match &self.kind {
+            ParseErrorKind::InvalidToken(t) => write!(f, "Invalid token: {}", t),
+            ParseErrorKind::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
+            ParseErrorKind::UnexpectedEOF => write!(f, "Unexpected end of input"),
+            ParseErrorKind::InvalidNumber(n) => write!(f, "Invalid number format: {}", n),
+            ParseErrorKind::NumberOverflow => write!(f, "Number too large"),
+            ParseErrorKind::NumberUnderflow => write!(f, "Number too small"),
+            ParseErrorKind::InvalidString(s) => write!(f, "Invalid string: {}", s),
+            ParseErrorKind::InvalidEscape(c) => write!(f, "Invalid escape sequence: {}", c),
+            ParseErrorKind::InvalidUnicode => write!(f, "Invalid Unicode escape sequence"),
+            ParseErrorKind::UnterminatedString => write!(f, "Unterminated string"),
+            ParseErrorKind::InvalidKey(k) => write!(f, "Invalid key: {}", k),
+            ParseErrorKind::DuplicateKey(k) => write!(f, "Duplicate key: {}", k),
+            ParseErrorKind::InvalidValue(v) => write!(f, "Invalid value: {}", v),
+            ParseErrorKind::NestedTableError => write!(f, "Invalid nested table structure"),
+            ParseErrorKind::CircularReference => write!(f, "Circular reference detected"),
+            ParseErrorKind::MaxDepthExceeded => write!(f, "Maximum nesting depth exceeded"),
+            ParseErrorKind::MaxSizeExceeded => write!(f, "Maximum input size exceeded"),
+            ParseErrorKind::MaxStringLengthExceeded => write!(f, "Maximum string length exceeded"),
+            ParseErrorKind::MaxObjectEntriesExceeded => {
+                write!(f, "Maximum number of object entries exceeded")
+            }
+            ParseErrorKind::IoError(e) => write!(f, "IO error: {}", e),
+            ParseErrorKind::UnknownFormat => write!(f, "Unknown file format"),
+        }?;
+
         if let Some(loc) = &self.location {
             write!(f, " at line {}, column {}", loc.line, loc.column)?;
         }

@@ -6,8 +6,13 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
     lexer.advance();
 
     let mut result = String::new();
+    let max_length = lexer.config.max_string_length;
 
     while let Some(c) = lexer.current_char {
+        if result.len() >= max_length {
+            return Err(ParseError::new(ParseErrorKind::MaxStringLengthExceeded));
+        }
+
         match c {
             '"' => {
                 // Reached the closing quote

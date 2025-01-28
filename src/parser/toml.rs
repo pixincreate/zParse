@@ -3,10 +3,12 @@ use super::{
     lexer::Lexer,
     value::Value,
 };
+use crate::common::parser_state::ParserState;
 use crate::enums::Token;
 use crate::error::{ParseError, ParseErrorKind, Result};
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct TomlParser {
     /// Lexer that provides tokens
     lexer: Lexer,
@@ -24,6 +26,11 @@ pub struct TomlParser {
 
 impl TomlParser {
     pub fn new(input: &str) -> Result<Self> {
+        let state = ParserState::new();
+
+        // Check input size first
+        state.validate_input_size(input.len())?;
+
         let mut lexer = Lexer::new(input);
         let current_token = lexer.next_token()?;
 
@@ -72,6 +79,7 @@ impl TomlParser {
     }
 
     fn parse_table_header(&mut self) -> Result<()> {
+        // Check nesting depth before processing table
         self.context.enter_nested(&self.config)?;
 
         self.advance()?; // consume first '['
@@ -83,10 +91,20 @@ impl TomlParser {
         let mut path = Vec::new();
         let mut entry_count = 0;
 
+        // Check max depth before processing
+        if self.context.current_depth >= self.config.max_depth {
+            return Err(ParseError::new(ParseErrorKind::MaxDepthExceeded));
+        }
+
         loop {
             match &self.current_token {
                 Token::String(s) => {
-                    // Validate string length
+                    // Check max depth on each new component
+                    if path.len() >= self.config.max_depth {
+                        return Err(ParseError::new(ParseErrorKind::MaxDepthExceeded));
+                    }
+
+                    // Validate string length and track memory
                     self.config.validate_string(s)?;
                     // Track memory usage
                     self.context.add_size(s.len(), &self.config)?;
@@ -134,7 +152,14 @@ impl TomlParser {
         let mut current = &mut self.tables;
         let mut path = Vec::new();
 
+        // Check total depth before processing
+        if self.current_table.len() > self.config.max_depth {
+            return Err(ParseError::new(ParseErrorKind::MaxDepthExceeded));
+        }
+
         for key in &self.current_table {
+            // Track nesting level
+            self.context.enter_nested(&self.config)?;
             path.push(key);
 
             // Check if this path already exists as a complete table
@@ -174,6 +199,8 @@ impl TomlParser {
                     };
                 }
             }
+
+            self.context.exit_nested();
         }
 
         Ok(())
@@ -365,12 +392,15 @@ impl TomlParser {
     }
 
     fn get_or_create_array_table(&mut self, path: &[String]) -> Result<()> {
+        // Check nesting depth
         self.context.enter_nested(&self.config)?;
 
         let mut current = &mut self.tables;
         let mut temp_path = Vec::new();
 
         for key in path {
+            // Check depth for each nested level
+            self.context.enter_nested(&self.config)?;
             temp_path.push(key.clone());
 
             // Check if we need to create the key
@@ -412,6 +442,8 @@ impl TomlParser {
                 }
                 _ => return Err(ParseError::new(ParseErrorKind::NestedTableError)),
             };
+
+            self.context.exit_nested();
         }
 
         self.context.exit_nested();

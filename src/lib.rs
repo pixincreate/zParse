@@ -25,11 +25,15 @@ pub mod error;
 pub mod formatter;
 pub mod parser;
 pub mod utils;
+pub mod common;
 
+// Re-exports
 pub use converter::Converter;
 pub use error::{ParseError, ParseErrorKind, Result};
 pub use parser::{json::JsonParser, toml::TomlParser, value::Value};
 use utils::{parse_json, parse_toml};
+
+pub use common::value_compare::values_equal;
 
 #[instrument]
 pub fn parse_file(path: &str) -> Result<Value> {

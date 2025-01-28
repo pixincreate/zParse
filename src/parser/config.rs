@@ -1,5 +1,10 @@
 use crate::error::{ParseError, ParseErrorKind, Result};
 
+pub const DEFAULT_MAX_DEPTH: usize = 32;
+pub const DEFAULT_MAX_SIZE: usize = 1_048_576; // 1MB
+pub const DEFAULT_MAX_STRING_LENGTH: usize = 102_400; // 100KB
+pub const DEFAULT_MAX_OBJECT_ENTRIES: usize = 1_000;
+
 /// Configuration for parser limits and validation
 #[derive(Debug, Clone)]
 pub struct ParserConfig {
@@ -16,17 +21,17 @@ pub struct ParserConfig {
 /// Tracks memory usage and nesting depth during parsing
 #[derive(Debug)]
 pub struct ParsingContext {
-    current_depth: usize,
+    pub current_depth: usize,
     current_size: usize,
 }
 
 impl Default for ParserConfig {
     fn default() -> Self {
         Self {
-            max_depth: 100,
-            max_size: 10 * 1024 * 1024,     // 10MB
-            max_string_length: 1024 * 1024, // 1MB
-            max_object_entries: 10000,
+            max_depth: DEFAULT_MAX_DEPTH,
+            max_size: DEFAULT_MAX_SIZE,
+            max_string_length: DEFAULT_MAX_STRING_LENGTH,
+            max_object_entries: DEFAULT_MAX_OBJECT_ENTRIES,
         }
     }
 }
@@ -70,7 +75,9 @@ impl ParsingContext {
     }
 
     pub fn exit_nested(&mut self) {
-        self.current_depth -= 1;
+        if self.current_depth > 0 {
+            self.current_depth -= 1;
+        }
     }
 
     pub fn add_size(&mut self, size: usize, config: &ParserConfig) -> Result<()> {

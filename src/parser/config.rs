@@ -15,8 +15,8 @@ impl Default for ParserConfig {
     fn default() -> Self {
         Self {
             max_depth: 100,
-            max_size: 10 * 1024 * 1024, // 10MB
-            max_string_length: 1000000,
+            max_size: 10 * 1024 * 1024,     // 10MB
+            max_string_length: 1024 * 1024, // 1MB
             max_object_entries: 10000,
         }
     }

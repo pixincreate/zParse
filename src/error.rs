@@ -56,6 +56,14 @@ pub enum ParseErrorKind {
     IoError(String),
     /// Error reading file
     UnknownFormat,
+    /// Maximum nesting depth exceeded
+    MaxDepthExceeded,
+    /// Maximum input size exceeded
+    MaxSizeExceeded,
+    /// Maximum string length exceeded
+    MaxStringLengthExceeded,
+    /// Maximum number of object entries exceeded
+    MaxObjectEntriesExceeded,
 }
 
 impl ParseError {

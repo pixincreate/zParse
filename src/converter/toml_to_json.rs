@@ -7,14 +7,8 @@ pub struct TomlToJsonConverter;
 
 impl CommonConverter for TomlToJsonConverter {
     fn convert_map(map: HashMap<String, Value>) -> Result<Value> {
-        let mut json_map = HashMap::new();
-
-        for (key, value) in map {
-            let converted = Self::convert_value(value)?;
-            json_map.insert(key, converted);
-        }
-
-        Ok(Value::Object(json_map))
+        let json_map = Self::convert_map_inner(map).unwrap_or_default();
+        Ok(Value::Map(json_map))
     }
 
     fn convert_array(arr: Vec<Value>) -> Result<Value> {

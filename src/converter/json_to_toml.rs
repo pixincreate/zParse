@@ -14,14 +14,8 @@ pub struct JsonToTomlConverter;
 
 impl CommonConverter for JsonToTomlConverter {
     fn convert_map(map: HashMap<String, Value>) -> Result<Value> {
-        let mut toml_map = HashMap::new();
-
-        for (key, value) in map {
-            let converted = Self::convert_value(value)?;
-            toml_map.insert(key, converted);
-        }
-
-        Ok(Value::Table(toml_map))
+        let temp_map = Self::convert_map_inner(map).unwrap_or_default();
+        Ok(Value::Map(temp_map))
     }
 
     fn convert_array(arr: Vec<Value>) -> Result<Value> {

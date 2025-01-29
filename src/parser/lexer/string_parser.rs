@@ -10,7 +10,9 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
 
     while let Some(c) = lexer.current_char {
         if result.len() >= max_length {
-            return Err(ParseError::new(ParseErrorKind::MaxStringLengthExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                crate::error::SecurityError::MaxStringLengthExceeded,
+            )));
         }
 
         match c {
@@ -30,15 +32,17 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
                         '\\' => '\\',
                         '"' => '"',
                         _ => {
-                            return Err(ParseError::new(ParseErrorKind::InvalidEscape(
-                                escape_char,
+                            return Err(ParseError::new(ParseErrorKind::Lexical(
+                                crate::error::LexicalError::InvalidEscape(escape_char),
                             )));
                         }
                     };
                     result.push(escaped);
                     lexer.advance();
                 } else {
-                    return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
+                    return Err(ParseError::new(ParseErrorKind::Lexical(
+                        crate::error::LexicalError::UnexpectedEOF,
+                    )));
                 }
             }
             _ => {
@@ -49,5 +53,7 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
     }
 
     // If we exit the while loop, we ran out of characters before finding a closing quote
-    Err(ParseError::new(ParseErrorKind::UnexpectedEOF))
+    Err(ParseError::new(ParseErrorKind::Lexical(
+        crate::error::LexicalError::UnexpectedEOF,
+    )))
 }

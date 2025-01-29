@@ -2,7 +2,7 @@ use clap::Parser;
 use std::path::Path;
 use zparse::{
     converter::Converter,
-    error::{ParseError, ParseErrorKind, Result},
+    error::{ParseError, ParseErrorKind, Result, SemanticError, SyntaxError},
     utils::{format_json, format_toml, parse_json, parse_toml, read_file, write_file},
 };
 
@@ -33,9 +33,9 @@ fn main() -> Result<()> {
         .extension()
         .and_then(|ext| ext.to_str())
         .ok_or_else(|| {
-            ParseError::new(ParseErrorKind::InvalidValue(
-                "Invalid file extension".to_string(),
-            ))
+            ParseError::new(ParseErrorKind::Syntax(SyntaxError::InvalidValue(
+                "file extension".to_string(),
+            )))
         })?;
 
     // Parse input
@@ -43,8 +43,8 @@ fn main() -> Result<()> {
         "json" => parse_json(&content)?,
         "toml" => parse_toml(&content)?,
         _ => {
-            return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "Unsupported file format".to_string(),
+            return Err(ParseError::new(ParseErrorKind::Semantic(
+                SemanticError::InvalidFormat,
             )))
         }
     };
@@ -55,8 +55,8 @@ fn main() -> Result<()> {
             ("json", "toml") => (Converter::json_to_toml(parsed_value)?, "toml"),
             ("toml", "json") => (Converter::toml_to_json(parsed_value)?, "json"),
             _ => {
-                return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                    "Invalid conversion".to_string(),
+                return Err(ParseError::new(ParseErrorKind::Syntax(
+                    SyntaxError::InvalidValue("conversion".to_string()),
                 )))
             }
         }
@@ -69,8 +69,8 @@ fn main() -> Result<()> {
         "json" => format_json(&final_value),
         "toml" => format_toml(&final_value),
         _ => {
-            return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "Invalid output format".to_string(),
+            return Err(ParseError::new(ParseErrorKind::Semantic(
+                SemanticError::UnknownFormat,
             )))
         }
     };

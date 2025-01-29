@@ -1,26 +1,18 @@
 use crate::{
-    error::{ParseError, ParseErrorKind, Result},
+    error::{IOError, ParseError, ParseErrorKind, Result},
     formatter::{FormatConfig, Formatter, JsonFormatter, TomlFormatter},
     parser::{json::JsonParser, toml::TomlParser, value::Value},
 };
 use std::fs;
 
 pub fn read_file(path: &str) -> Result<String> {
-    fs::read_to_string(path).map_err(|_| {
-        ParseError::new(ParseErrorKind::IoError(format!(
-            "Cannot read file: {}",
-            path
-        )))
-    })
+    fs::read_to_string(path)
+        .map_err(|_| ParseError::new(ParseErrorKind::IO(IOError::ReadError(path.to_string()))))
 }
 
 pub fn write_file(path: &str, content: &str) -> Result<()> {
-    fs::write(path, content).map_err(|_| {
-        ParseError::new(ParseErrorKind::IoError(format!(
-            "Cannot write to file: {}",
-            path
-        )))
-    })
+    fs::write(path, content)
+        .map_err(|_| ParseError::new(ParseErrorKind::IO(IOError::WriteError(path.to_string()))))
 }
 
 pub fn parse_json(content: &str) -> Result<Value> {

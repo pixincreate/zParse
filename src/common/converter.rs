@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{LexicalError, ParseError, ParseErrorKind, Result};
 use crate::parser::Value;
 use std::collections::HashMap;
 
@@ -10,8 +10,8 @@ pub trait CommonConverter {
     fn validate_root(value: Value) -> Result<HashMap<String, Value>> {
         match value {
             Value::Map(map) => Ok(map),
-            _ => Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "Root must be an object/table".to_string(),
+            _ => Err(ParseError::new(ParseErrorKind::Lexical(
+                LexicalError::InvalidToken("Root must be an object/table".to_string()),
             ))),
         }
     }

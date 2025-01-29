@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::error::{ParseError, ParseErrorKind};
+use crate::error::{ParseError, ParseErrorKind, SecurityError};
 use crate::parser::config::{ParserConfig, ParsingContext};
 
 #[derive(Debug)]
@@ -43,7 +43,9 @@ impl ParserState {
 
     pub fn validate_object_entries(&self, count: usize) -> Result<()> {
         if count > self.config.max_object_entries {
-            return Err(ParseError::new(ParseErrorKind::MaxObjectEntriesExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                SecurityError::MaxObjectEntriesExceeded,
+            )));
         }
         Ok(())
     }
@@ -54,7 +56,9 @@ impl ParserState {
 
     pub fn validate_input_size(&self, size: usize) -> Result<()> {
         if size > self.config.max_size {
-            return Err(ParseError::new(ParseErrorKind::MaxSizeExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                SecurityError::MaxSizeExceeded,
+            )));
         }
         Ok(())
     }

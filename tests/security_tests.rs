@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::indexing_slicing)]
 
-use zparse::error::ParseErrorKind;
+use zparse::error::{ParseErrorKind, SecurityError};
 use zparse::parser::config::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_OBJECT_ENTRIES, DEFAULT_MAX_SIZE};
 use zparse::parser::{JsonParser, TomlParser};
 
@@ -16,7 +16,10 @@ fn test_max_input_size() {
     let result = JsonParser::new(&large_input);
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e.kind(), ParseErrorKind::MaxSizeExceeded));
+        assert!(matches!(
+            e.kind(),
+            ParseErrorKind::Security(SecurityError::MaxSizeExceeded)
+        ));
     }
 }
 
@@ -32,7 +35,10 @@ fn test_max_object_entries() {
     let result = JsonParser::new(&json).and_then(|mut parser| parser.parse());
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e.kind(), ParseErrorKind::MaxObjectEntriesExceeded));
+        assert!(matches!(
+            e.kind(),
+            ParseErrorKind::Security(SecurityError::MaxObjectEntriesExceeded)
+        ));
     }
 }
 
@@ -57,7 +63,10 @@ fn test_stack_overflow_prevention() {
     );
     if let Err(e) = result {
         assert!(
-            matches!(e.kind(), ParseErrorKind::MaxDepthExceeded),
+            matches!(
+                e.kind(),
+                ParseErrorKind::Security(SecurityError::MaxDepthExceeded)
+            ),
             "Expected MaxDepthExceeded, got {:?}",
             e.kind()
         );
@@ -73,7 +82,10 @@ fn test_max_string_length() {
     let result = JsonParser::new(&json).and_then(|mut parser| parser.parse());
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e.kind(), ParseErrorKind::MaxStringLengthExceeded));
+        assert!(matches!(
+            e.kind(),
+            ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded)
+        ));
     }
 }
 
@@ -92,6 +104,9 @@ fn test_max_nesting_depth() {
     let result = JsonParser::new(&json).and_then(|mut parser| parser.parse());
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e.kind(), ParseErrorKind::MaxDepthExceeded));
+        assert!(matches!(
+            e.kind(),
+            ParseErrorKind::Security(SecurityError::MaxDepthExceeded)
+        ));
     }
 }

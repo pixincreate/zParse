@@ -25,62 +25,99 @@ pub struct Location {
     pub column: usize,
 }
 
-/// Specific categories of parsing errors
+/// Top-level error categories
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
-    // Lexical errors
-    /// Found an invalid token in the input
-    InvalidToken(String),
-    /// Found a valid token in an unexpected position
-    UnexpectedToken(String),
-    /// Reached end of input unexpectedly
-    UnexpectedEOF,
+    IO(IOError),
+    Lexical(LexicalError),
+    Security(SecurityError),
+    Semantic(SemanticError),
+    Syntax(SyntaxError),
+}
 
-    // Number parsing errors
+/// Lexical analysis errors
+#[derive(Debug, Clone)]
+pub enum LexicalError {
+    /// Invalid escape sequence in a string
+    InvalidEscape(char),
     /// Found an invalid number format
     InvalidNumber(String),
+    /// Invalid string format
+    InvalidString(String),
+    /// Found an invalid token in the input
+    InvalidToken(String),
+    /// Invalid Unicode escape sequence
+    InvalidUnicode,
     /// Number is too large to be represented
     NumberOverflow,
     /// Number is too small to be represented
     NumberUnderflow,
-
-    // String parsing errors
-    /// Invalid string format
-    InvalidString(String),
-    /// Invalid escape sequence in a string
-    InvalidEscape(char),
-    /// Invalid Unicode escape sequence
-    InvalidUnicode,
+    /// Found a valid token in an unexpected position
+    UnexpectedToken(String),
+    /// Reached end of input unexpectedly
+    UnexpectedEOF,
     /// Unterminated string
     UnterminatedString,
+}
 
-    // Structural errors
-    /// Invalid object key format
-    InvalidKey(String),
+/// Syntax parsing errors
+#[derive(Debug, Clone)]
+pub enum SyntaxError {
     /// Duplicate object key
     DuplicateKey(String),
+    /// Invalid object key format
+    InvalidKey(String),
     /// Value passed to a function is not a valid type
     InvalidValue(String),
-    /// Nested table error (TOML specific)
-    NestedTableError,
+    /// Missing colon after key
+    MissingColon,
+    /// Missing comma between elements
+    MissingComma,
+    /// Trailing comma in an array or object
+    TrailingComma,
+    /// Found an unexpected character in the input
+    UnexpectedCharacter(char),
+}
+
+/// Semantic validation errors
+#[derive(Debug, Clone)]
+pub enum SemanticError {
     /// Circular reference detected in the input
     CircularReference,
+    /// Invalid document format
+    InvalidFormat,
+    /// Nested table error (TOML specific)
+    NestedTableError,
+    /// Type mismatch error
+    TypeMismatch(String),
+    /// Error parsing a file due to unknwon format
+    UnknownFormat,
+}
 
-    // Security errors
+/// Security-related errors
+#[derive(Debug, Clone)]
+pub enum SecurityError {
     /// Exceeded maximum depth of nesting
     MaxDepthExceeded,
+    /// Exceeded maximum number of object entries
+    MaxObjectEntriesExceeded,
     /// Exceeded maximum input size
     MaxSizeExceeded,
     /// Exceeded maximum string length
     MaxStringLengthExceeded,
-    /// Exceeded maximum number of object entries
-    MaxObjectEntriesExceeded,
+}
 
-    // IO errors
+/// IO operation errors
+#[derive(Debug, Clone)]
+pub enum IOError {
+    /// File not found
+    FileNotFound(String),
+    /// Permission denied
+    PermissionDenied(String),
     /// Error reading from a file
-    IoError(String),
-    /// Error parsing a file due to unknwon format
-    UnknownFormat,
+    ReadError(String),
+    /// Error writing to a file
+    WriteError(String),
 }
 
 impl ParseError {
@@ -113,35 +150,84 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            ParseErrorKind::InvalidToken(t) => write!(f, "Invalid token: {}", t),
-            ParseErrorKind::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
-            ParseErrorKind::UnexpectedEOF => write!(f, "Unexpected end of input"),
-            ParseErrorKind::InvalidNumber(n) => write!(f, "Invalid number format: {}", n),
-            ParseErrorKind::NumberOverflow => write!(f, "Number too large"),
-            ParseErrorKind::NumberUnderflow => write!(f, "Number too small"),
-            ParseErrorKind::InvalidString(s) => write!(f, "Invalid string: {}", s),
-            ParseErrorKind::InvalidEscape(c) => write!(f, "Invalid escape sequence: {}", c),
-            ParseErrorKind::InvalidUnicode => write!(f, "Invalid Unicode escape sequence"),
-            ParseErrorKind::UnterminatedString => write!(f, "Unterminated string"),
-            ParseErrorKind::InvalidKey(k) => write!(f, "Invalid key: {}", k),
-            ParseErrorKind::DuplicateKey(k) => write!(f, "Duplicate key: {}", k),
-            ParseErrorKind::InvalidValue(v) => write!(f, "Invalid value: {}", v),
-            ParseErrorKind::NestedTableError => write!(f, "Invalid nested table structure"),
-            ParseErrorKind::CircularReference => write!(f, "Circular reference detected"),
-            ParseErrorKind::MaxDepthExceeded => write!(f, "Maximum nesting depth exceeded"),
-            ParseErrorKind::MaxSizeExceeded => write!(f, "Maximum input size exceeded"),
-            ParseErrorKind::MaxStringLengthExceeded => write!(f, "Maximum string length exceeded"),
-            ParseErrorKind::MaxObjectEntriesExceeded => {
-                write!(f, "Maximum number of object entries exceeded")
-            }
-            ParseErrorKind::IoError(e) => write!(f, "IO error: {}", e),
-            ParseErrorKind::UnknownFormat => write!(f, "Unknown file format"),
+            ParseErrorKind::IO(err) => write!(f, "IO error: {}", err),
+            ParseErrorKind::Lexical(err) => write!(f, "Lexical error: {}", err),
+            ParseErrorKind::Security(err) => write!(f, "Security error: {}", err),
+            ParseErrorKind::Semantic(err) => write!(f, "Semantic error: {}", err),
+            ParseErrorKind::Syntax(err) => write!(f, "Syntax error: {}", err),
         }?;
 
         if let Some(loc) = &self.location {
             write!(f, " at line {}, column {}", loc.line, loc.column)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for LexicalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidEscape(c) => write!(f, "Invalid escape sequence: {}", c),
+            Self::InvalidNumber(n) => write!(f, "Invalid number format: {}", n),
+            Self::InvalidString(s) => write!(f, "Invalid string: {}", s),
+            Self::InvalidToken(t) => write!(f, "Invalid token: {}", t),
+            Self::InvalidUnicode => write!(f, "Invalid Unicode escape sequence"),
+            Self::NumberOverflow => write!(f, "Number is too large"),
+            Self::NumberUnderflow => write!(f, "Number is too small"),
+            Self::UnexpectedEOF => write!(f, "Unexpected end of input"),
+            Self::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
+            Self::UnterminatedString => write!(f, "Unterminated string"),
+        }
+    }
+}
+
+impl fmt::Display for SyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateKey(k) => write!(f, "Duplicate key: {}", k),
+            Self::InvalidKey(k) => write!(f, "Invalid key: {}", k),
+            Self::InvalidValue(v) => write!(f, "Invalid value: {}", v),
+            Self::MissingColon => write!(f, "Missing colon after key"),
+            Self::MissingComma => write!(f, "Missing comma between elements"),
+            Self::TrailingComma => write!(f, "Trailing comma not allowed"),
+            Self::UnexpectedCharacter(c) => write!(f, "Unexpected character: {}", c),
+        }
+    }
+}
+
+impl fmt::Display for SemanticError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CircularReference => write!(f, "Circular reference detected"),
+            Self::InvalidFormat => write!(f, "Invalid document format"),
+            Self::NestedTableError => write!(f, "Invalid nested table structure"),
+            Self::TypeMismatch(msg) => write!(f, "Type mismatch: {}", msg),
+            Self::UnknownFormat => write!(f, "Unknown file format"),
+        }
+    }
+}
+
+impl fmt::Display for SecurityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MaxDepthExceeded => write!(f, "Maximum nesting depth exceeded"),
+            Self::MaxObjectEntriesExceeded => {
+                write!(f, "Maximum number of object entries exceeded")
+            }
+            Self::MaxSizeExceeded => write!(f, "Maximum input size exceeded"),
+            Self::MaxStringLengthExceeded => write!(f, "Maximum string length exceeded"),
+        }
+    }
+}
+
+impl fmt::Display for IOError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FileNotFound(path) => write!(f, "File not found: {}", path),
+            Self::PermissionDenied(msg) => write!(f, "Permission denied: {}", msg),
+            Self::ReadError(msg) => write!(f, "Read error: {}", msg),
+            Self::WriteError(msg) => write!(f, "Write error: {}", msg),
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use number_parser::read_number;
 use string_parser::read_string;
 
 use crate::enums::Token;
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError};
 use crate::parser::config::ParserConfig;
 
 /// The core Lexer struct that other modules will use
@@ -120,17 +120,24 @@ impl Lexer {
                 _ if Self::is_bare_key_start(c) => {
                     // In JSON mode, we forbid bare keys
                     if self.is_json_mode {
-                        Err(ParseError::new(ParseErrorKind::InvalidToken(format!(
-                            "Unexpected char '{}'. JSON requires quoted strings",
-                            c
-                        ))))
+                        Err(ParseError::new(ParseErrorKind::Lexical(
+                            LexicalError::InvalidToken(format!(
+                                "Unexpected char '{}'. JSON requires quoted strings",
+                                c
+                            )),
+                        )))
                     } else {
                         // Parse a bare key
                         let s = self.read_bare_key()?;
                         Ok(Token::String(s))
                     }
                 }
-                _ => Err(ParseError::new(ParseErrorKind::InvalidToken(format!("Unexpected character '{}' at position {}", c, self.position)))),
+                _ => Err(ParseError::new(ParseErrorKind::Lexical(
+                    LexicalError::InvalidToken(format!(
+                        "Unexpected character '{}' at position {}",
+                        c, self.position
+                    )),
+                ))),
             },
         }
     }
@@ -153,8 +160,8 @@ impl Lexer {
             }
         }
         if key.is_empty() {
-            Err(ParseError::new(ParseErrorKind::InvalidKey(
-                "Empty key".to_string(),
+            Err(ParseError::new(ParseErrorKind::Syntax(
+                SyntaxError::InvalidKey("Empty key".to_string()),
             )))
         } else {
             Ok(key)
@@ -167,7 +174,9 @@ impl Lexer {
             value.push(c);
             self.advance();
         } else {
-            return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
+            return Err(ParseError::new(ParseErrorKind::Lexical(
+                LexicalError::UnexpectedEOF,
+            )));
         }
         // Attempt “true”
         if self.current_char == Some('r') {
@@ -203,7 +212,9 @@ impl Lexer {
             value.push(c);
             self.advance();
         } else {
-            return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
+            return Err(ParseError::new(ParseErrorKind::Lexical(
+                LexicalError::UnexpectedEOF,
+            )));
         }
         // Attempt “false”
         if self.current_char == Some('a') {
@@ -243,7 +254,9 @@ impl Lexer {
             value.push(c);
             self.advance();
         } else {
-            return Err(ParseError::new(ParseErrorKind::UnexpectedEOF));
+            return Err(ParseError::new(ParseErrorKind::Lexical(
+                LexicalError::UnexpectedEOF,
+            )));
         }
         // Attempt “null”
         if self.current_char == Some('u') {

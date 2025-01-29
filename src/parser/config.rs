@@ -43,14 +43,18 @@ impl Default for ParserConfig {
 impl ParserConfig {
     pub fn validate_string(&self, s: &str) -> Result<()> {
         if s.len() > self.max_string_length {
-            return Err(ParseError::new(ParseErrorKind::MaxStringLengthExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                crate::error::SecurityError::MaxStringLengthExceeded,
+            )));
         }
         Ok(())
     }
 
     pub fn validate_object_entries(&self, count: usize) -> Result<()> {
         if count > self.max_object_entries {
-            return Err(ParseError::new(ParseErrorKind::MaxObjectEntriesExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                crate::error::SecurityError::MaxObjectEntriesExceeded,
+            )));
         }
         Ok(())
     }
@@ -73,7 +77,9 @@ impl ParsingContext {
     pub fn enter_nested(&mut self, config: &ParserConfig) -> Result<()> {
         self.current_depth += 1;
         if self.current_depth > config.max_depth {
-            return Err(ParseError::new(ParseErrorKind::MaxDepthExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                crate::error::SecurityError::MaxDepthExceeded,
+            )));
         }
         Ok(())
     }
@@ -87,7 +93,9 @@ impl ParsingContext {
     pub fn add_size(&mut self, size: usize, config: &ParserConfig) -> Result<()> {
         self.current_size += size;
         if self.current_size > config.max_size {
-            return Err(ParseError::new(ParseErrorKind::MaxSizeExceeded));
+            return Err(ParseError::new(ParseErrorKind::Security(
+                crate::error::SecurityError::MaxSizeExceeded,
+            )));
         }
         Ok(())
     }

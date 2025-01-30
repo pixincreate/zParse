@@ -136,9 +136,11 @@ impl TomlParser {
                             )));
                         }
                         self.advance()?; // consume second ']'
+                        self.detect_circular_reference(&path)?;
                         self.current_table = path.clone();
                         self.get_or_create_array_table(&path)?;
                     } else {
+                        self.detect_circular_reference(&path)?;
                         self.current_table = path;
                         self.ensure_table_exists()?;
                     }
@@ -200,15 +202,9 @@ impl TomlParser {
                         }
                     };
                 }
-                Some(_) => {
-                    return Err(ParseError::new(ParseErrorKind::Syntax(
-                        SyntaxError::InvalidValue(format!(
-                            "Key '{}' is already defined with a different type",
-                            path.iter()
-                                .map(|s| s.as_str())
-                                .collect::<Vec<_>>()
-                                .join(".")
-                        )),
+                Some(other) => {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::TypeMismatch(format!("Expected table, found {:?}", other)),
                     )));
                 }
                 None => {
@@ -484,11 +480,15 @@ impl TomlParser {
                         table
                     } else {
                         return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::NestedTableError)));
+                            SemanticError::NestedTableError,
+                        )));
                     }
                 }
-                _ => return Err(ParseError::new(ParseErrorKind::Semantic(
-                    SemanticError::NestedTableError))),
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::NestedTableError,
+                    )))
+                }
             };
 
             self.context.exit_nested();
@@ -497,4 +497,41 @@ impl TomlParser {
         self.context.exit_nested();
         Ok(())
     }
+
+    fn detect_circular_reference(&self, path: &[String]) -> Result<()> {
+        let full_path = path.join(".");
+        let mut current_path = String::new();
+
+        for segment in path {
+            if !current_path.is_empty() {
+                current_path.push('.');
+            }
+            current_path.push_str(segment);
+
+            // Check if this path exists and references the target path
+            if let Some(Value::Map(table)) = self.tables.get(&current_path) {
+                if contains_path(table, &full_path) {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::CircularReference,
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn contains_path(table: &HashMap<String, Value>, target_path: &str) -> bool {
+    for (key, value) in table {
+        match value {
+            Value::Map(inner_table) => {
+                let current_path = format!("{}.{}", target_path, key);
+                if current_path == target_path || contains_path(inner_table, target_path) {
+                    return true;
+                }
+            }
+            _ => continue,
+        }
+    }
+    false
 }

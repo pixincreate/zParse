@@ -1,5 +1,5 @@
 use super::Lexer;
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{LexicalError, ParseError, ParseErrorKind, Result};
 
 pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
     // Skip the opening quote
@@ -31,9 +31,10 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
                         't' => '\t',
                         '\\' => '\\',
                         '"' => '"',
+                        'u' => return parse_unicode_escape(lexer),
                         _ => {
                             return Err(ParseError::new(ParseErrorKind::Lexical(
-                                crate::error::LexicalError::InvalidEscape(escape_char),
+                                LexicalError::InvalidEscape(escape_char),
                             )));
                         }
                     };
@@ -41,7 +42,7 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
                     lexer.advance();
                 } else {
                     return Err(ParseError::new(ParseErrorKind::Lexical(
-                        crate::error::LexicalError::UnexpectedEOF,
+                        LexicalError::UnexpectedEOF,
                     )));
                 }
             }
@@ -54,6 +55,44 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
 
     // If we exit the while loop, we ran out of characters before finding a closing quote
     Err(ParseError::new(ParseErrorKind::Lexical(
-        crate::error::LexicalError::UnexpectedEOF,
+        LexicalError::UnexpectedEOF,
     )))
+}
+
+fn parse_unicode_escape(lexer: &mut Lexer) -> Result<String> {
+    lexer.advance(); // skip 'u'
+
+    // Unicode escapes must be exactly 4 hexadecimal digits
+    let mut code_point = 0u32;
+    for _ in 0..4 {
+        match lexer.current_char {
+            Some(c) => {
+                let digit = match c {
+                    '0'..='9' => c.to_digit(16).unwrap_or(0),
+                    'a'..='f' => c.to_digit(16).unwrap_or(0),
+                    'A'..='F' => c.to_digit(16).unwrap_or(0),
+                    _ => {
+                        return Err(ParseError::new(ParseErrorKind::Lexical(
+                            LexicalError::InvalidUnicode,
+                        )));
+                    }
+                };
+                code_point = code_point.saturating_mul(16).saturating_add(digit);
+                lexer.advance();
+            }
+            None => {
+                return Err(ParseError::new(ParseErrorKind::Lexical(
+                    LexicalError::UnexpectedEOF,
+                )))
+            }
+        }
+    }
+
+    // Convert the code point to a character
+    match char::from_u32(code_point) {
+        Some(c) => Ok(c.to_string()),
+        None => Err(ParseError::new(ParseErrorKind::Lexical(
+            LexicalError::InvalidUnicode,
+        ))),
+    }
 }

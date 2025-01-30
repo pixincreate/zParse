@@ -10,7 +10,7 @@
 use super::config::ParserConfig;
 use crate::common::parser_state::ParserState;
 use crate::enums::Token;
-use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError};
+use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError};
 use crate::parser::{lexer::Lexer, value::Value};
 use std::collections::HashMap;
 
@@ -27,6 +27,12 @@ pub struct JsonParser {
 impl JsonParser {
     /// Creates a new JSON parser for the given input
     pub fn new(input: &str) -> Result<Self> {
+        if input.is_empty() {
+            return Err(ParseError::new(ParseErrorKind::Semantic(
+                SemanticError::InvalidFormat,
+            )));
+        }
+
         let state = ParserState::new();
 
         // Check input size first
@@ -140,8 +146,8 @@ impl JsonParser {
 
             // Expect colon
             if self.current_token != Token::Colon {
-                return Err(ParseError::new(ParseErrorKind::Lexical(
-                    LexicalError::UnexpectedToken(format!("{:?}. Expected :", self.current_token)),
+                return Err(ParseError::new(ParseErrorKind::Syntax(
+                    SyntaxError::MissingColon,
                 )));
             }
             self.advance()?;
@@ -177,11 +183,8 @@ impl JsonParser {
                     return Ok(Value::Map(map));
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
-                            "{:?}. Expected , or }}",
-                            self.current_token
-                        )),
+                    return Err(ParseError::new(ParseErrorKind::Syntax(
+                        SyntaxError::MissingComma,
                     )))
                 }
             }

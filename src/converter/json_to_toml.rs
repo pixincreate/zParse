@@ -6,7 +6,7 @@
 //! - Validation of TOML restrictions
 //!
 use crate::common::converter::CommonConverter;
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{ParseError, ParseErrorKind, Result, SemanticError};
 use crate::parser::Value;
 use std::collections::HashMap;
 
@@ -29,9 +29,17 @@ impl CommonConverter for JsonToTomlConverter {
     fn convert_value(value: Value) -> Result<Value> {
         match value {
             Value::Map(map) => Self::convert_map(map),
-            Value::Array(arr) => Self::convert_array(arr),
-            Value::Null => Err(ParseError::new(ParseErrorKind::Syntax(
-                crate::error::SyntaxError::InvalidValue("null".to_string()),
+            Value::Array(arr) => {
+                // Check for nested null values in arrays
+                if arr.iter().any(|v| matches!(v, Value::Null)) {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::TypeMismatch("TOML arrays cannot contain null".to_string()),
+                    )));
+                }
+                Self::convert_array(arr)
+            }
+            Value::Null => Err(ParseError::new(ParseErrorKind::Semantic(
+                SemanticError::TypeMismatch("TOML does not support null values".to_string()),
             ))),
             _ => Ok(value),
         }

@@ -12,7 +12,7 @@ mod toml_tests {
         parser::{config::ParserConfig, TomlParser, Value},
         utils::parse_toml,
     };
-    
+
     fn read_test_file(path: &str) -> String {
         fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path))
     }

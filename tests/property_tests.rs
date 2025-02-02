@@ -1,7 +1,4 @@
-#![allow(clippy::panic_in_result_fn)]
-#![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::as_conversions)]
 
 use proptest::collection::vec;

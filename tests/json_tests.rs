@@ -1,7 +1,6 @@
 #![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
 
 #[cfg(test)]
 mod json_tests {

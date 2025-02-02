@@ -1,7 +1,6 @@
 #![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
 #![allow(clippy::expect_used)]
 
 use std::fs;
@@ -75,7 +74,7 @@ fn test_toml_to_json_conversion() {
 
     assert!(
         compare_values(&json_value, &expected_value),
-        "TOML to JSON conversion produced unexpected structure.\n\
+        "TOML to JSON conversion produced an unexpected structure.\n\
          Got:\n{}\n\nExpected:\n{}",
         format_json(&json_value),
         expected_json

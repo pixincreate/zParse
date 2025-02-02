@@ -2,7 +2,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
 
 use std::env;
 use std::fs;

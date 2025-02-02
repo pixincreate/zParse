@@ -6,15 +6,15 @@
 
 use proptest::collection::vec;
 use proptest::prelude::*;
-use zparse::{parser::JsonParser, Converter, Value};
+use zparse::{
+    parser::{config::ParserConfig, JsonParser, Value},
+    Converter,
+};
 
 // Helper function to compare values structurally rather than string representation
 fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::Object(l_map), Value::Object(r_map))
-        | (Value::Table(l_map), Value::Table(r_map))
-        | (Value::Object(l_map), Value::Table(r_map))
-        | (Value::Table(l_map), Value::Object(r_map)) => {
+        (Value::Map(l_map), Value::Map(r_map)) => {
             if l_map.len() != r_map.len() {
                 return false;
             }
@@ -295,5 +295,58 @@ proptest! {
             let back_to_json = Converter::toml_to_json(toml).unwrap();
 
             prop_assert!(values_equal(&original, &back_to_json));
+        }
+
+        #[test]
+        fn test_security_limits(s in "\\PC{0,150}") {
+            let config = ParserConfig {
+                max_size: 100,
+                max_string_length: 50,
+                max_object_entries: 5,
+                max_depth: 3,
+            };
+
+            // Keep a reference to the limits we want to check
+            let max_size = config.max_size;
+            let max_string_length = config.max_string_length;
+
+            let json_str = format!(
+                r#"{{
+                    "string": "{}",
+                    "nested": {{"level2": {{"level3": {{"level4": 1}}}}}}
+                }}"#,
+                s
+            );
+
+            let result = JsonParser::new(&json_str)
+                .map(|p| p.with_config(config).parse());
+
+            match result {
+                Ok(parse_result) => {
+                    match parse_result {
+                        Ok(_) => {
+                            // Use the saved limits instead of accessing config
+                            prop_assert!(json_str.len() <= max_size,
+                                "Input size {} exceeds max {}",
+                                json_str.len(),
+                                max_size
+                            );
+                            prop_assert!(s.len() <= max_string_length,
+                                "String length {} exceeds max {}",
+                                s.len(),
+                                max_string_length
+                            );
+                        },
+                        Err(e) => {
+                            println!("Parse error: {:?}", e);
+                            prop_assert!(true, "Got expected parse error: {:?}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Creation error: {:?}", e);
+                    prop_assert!(true, "Got expected creation error: {:?}", e);
+                }
+            }
         }
 }

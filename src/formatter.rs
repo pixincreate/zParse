@@ -39,7 +39,7 @@ pub trait CommonFormatter {
             Value::String(s) => format!("\"{}\"", s),
             Value::DateTime(dt) => format!("\"{}\"", dt),
             Value::Array(_) => helpers::format_empty_array(),
-            Value::Object(_) | Value::Table(_) => helpers::format_empty_object(),
+            Value::Map(_) => helpers::format_empty_object(),
         }
     }
 
@@ -64,7 +64,7 @@ pub trait CommonFormatter {
 
     /// Checks if an array contains tables
     fn is_table_array(arr: &[Value]) -> bool {
-        arr.iter().any(|v| matches!(v, Value::Table(_)))
+        arr.iter().any(|v| matches!(v, Value::Map(_)))
     }
 }
 

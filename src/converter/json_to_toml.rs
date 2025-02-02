@@ -5,44 +5,41 @@
 //! - Type mapping between formats
 //! - Validation of TOML restrictions
 
-use super::FormatConverter;
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::common::converter::CommonConverter;
+use crate::error::{ParseError, ParseErrorKind, Result, SemanticError};
 use crate::parser::Value;
 use std::collections::HashMap;
 
 pub struct JsonToTomlConverter;
-impl FormatConverter for JsonToTomlConverter {
-    fn convert_root(map: HashMap<String, Value>) -> Result<Value> {
-        let mut toml_map = HashMap::new();
 
-        for (key, value) in map {
-            match value {
-                Value::Object(inner_map) => {
-                    toml_map.insert(key, Self::convert_root(inner_map)?);
-                }
-                Value::Array(arr) => {
-                    toml_map.insert(key, Self::convert_array(arr)?);
-                }
-                Value::Null => {
-                    return Err(ParseError::new(ParseErrorKind::InvalidValue(
-                        "TOML does not support null".to_string(),
-                    )))
-                }
-                _ => {
-                    toml_map.insert(key, value);
-                }
-            }
-        }
-
-        Ok(Value::Table(toml_map))
+impl CommonConverter for JsonToTomlConverter {
+    fn convert_map(map: HashMap<String, Value>) -> Result<Value> {
+        let temp_map = Self::convert_map_inner(map)?;
+        Ok(Value::Map(temp_map))
     }
 
-    fn convert_array_element(value: Value) -> Result<Value> {
+    fn convert_array(arr: Vec<Value>) -> Result<Value> {
+        let converted = arr
+            .into_iter()
+            .map(Self::convert_value)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Value::Array(converted))
+    }
+
+    fn convert_value(value: Value) -> Result<Value> {
         match value {
-            Value::Object(map) => Self::convert_root(map),
-            Value::Array(arr) => Self::convert_array(arr),
-            Value::Null => Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "TOML does not support null".to_string(),
+            Value::Map(map) => Self::convert_map(map),
+            Value::Array(arr) => {
+                // Check for nested null values in arrays
+                if arr.iter().any(|v| matches!(v, Value::Null)) {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::TypeMismatch("TOML arrays cannot contain null".to_string()),
+                    )));
+                }
+                Self::convert_array(arr)
+            }
+            Value::Null => Err(ParseError::new(ParseErrorKind::Semantic(
+                SemanticError::TypeMismatch("TOML does not support null values".to_string()),
             ))),
             _ => Ok(value),
         }
@@ -58,8 +55,8 @@ impl JsonToTomlConverter {
     /// # Returns
     /// * `Ok(Value)` - The converted TOML value
     /// * `Err` - If the JSON structure cannot be represented in TOML
-    pub fn convert(json_value: Value) -> Result<Value> {
-        let map = Self::validate_root(json_value)?;
-        Self::convert_root(map)
+    pub fn convert(value: Value) -> Result<Value> {
+        let map = Self::validate_root(value)?;
+        Self::convert_map(map)
     }
 }

@@ -2,12 +2,15 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::expect_used)]
 
 use std::fs;
 use zparse::{
+    common::value_compare::values_equal,
+    converter::Converter,
+    error::{ParseErrorKind, SemanticError},
     parser::{value::Value, JsonParser, TomlParser},
-    utils::{format_json, format_toml},
-    Converter,
+    utils::{format_json, parse_json},
 };
 
 fn read_test_file(path: &str) -> String {
@@ -16,10 +19,7 @@ fn read_test_file(path: &str) -> String {
 
 fn compare_values(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::Object(l_map), Value::Object(r_map))
-        | (Value::Table(l_map), Value::Table(r_map))
-        | (Value::Object(l_map), Value::Table(r_map))
-        | (Value::Table(l_map), Value::Object(r_map)) => {
+        (Value::Map(l_map), Value::Map(r_map)) => {
             if l_map.len() != r_map.len() {
                 return false;
             }
@@ -50,18 +50,14 @@ fn test_json_to_toml_conversion() {
     let mut json_parser = JsonParser::new(&json_input).unwrap();
     let json_value = json_parser.parse().unwrap();
 
-    let toml_value = Converter::json_to_toml(json_value).unwrap();
-
+    let toml_value = Converter::json_to_toml(json_value.clone()).unwrap();
     let expected_toml = read_test_file("tests/input/file.toml");
     let mut toml_parser = TomlParser::new(&expected_toml).unwrap();
     let expected_value = toml_parser.parse().unwrap();
 
     assert!(
-        compare_values(&toml_value, &expected_value),
-        "JSON to TOML conversion produced unexpected structure.\n\
-         Got:\n{}\n\nExpected:\n{}",
-        format_toml(&toml_value),
-        expected_toml
+        values_equal(&toml_value, &expected_value),
+        "Values don't match after conversion"
     );
 }
 
@@ -132,7 +128,7 @@ fn test_specific_value_conversions() {
     );
 
     // Test specific fields are present and have correct values
-    if let (Value::Object(json_map), Value::Table(toml_map)) = (&json_value, &toml_value) {
+    if let (Value::Map(json_map), Value::Map(toml_map)) = (&json_value, &toml_value) {
         // Check success field
         assert!(compare_values(
             json_map.get("success").unwrap(),
@@ -182,4 +178,26 @@ fn test_toml_json_toml_roundtrip() {
         compare_values(&toml_value, &converted_back),
         "TOML -> JSON -> TOML conversion did not preserve structure"
     );
+}
+
+#[test]
+fn converter_null_value_error() {
+    // Converting a JSON object containing a null value to TOML should fail
+    // because TOML does not support null values.
+    let input = r#"{"key": null}"#;
+    let json_value = parse_json(input).expect("JSON should parse successfully");
+    let result = Converter::json_to_toml(json_value);
+    assert!(result.is_err(), "Expected converter error for null value");
+
+    let err = result.unwrap_err();
+    match err.kind() {
+        ParseErrorKind::Semantic(SemanticError::TypeMismatch(msg)) => {
+            assert!(
+                msg.contains("TOML does not support null"),
+                "Unexpected error message: {}",
+                msg
+            );
+        }
+        other => panic!("Expected semantic error for null value, got {:?}", other),
+    }
 }

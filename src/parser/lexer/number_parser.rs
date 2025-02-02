@@ -1,5 +1,5 @@
 use super::Lexer;
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{LexicalError, ParseError, ParseErrorKind, Result};
 
 pub(crate) fn read_number(lexer: &mut Lexer) -> Result<f64> {
     let mut number_str = String::new();
@@ -25,7 +25,9 @@ pub(crate) fn read_number(lexer: &mut Lexer) -> Result<f64> {
             '_' => {
                 // Underscores must follow a digit (and not another underscore)
                 if !has_digits || previous_char_was_underscore {
-                    return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
+                    return Err(ParseError::new(ParseErrorKind::Lexical(
+                        LexicalError::InvalidNumber(number_str),
+                    )));
                 }
                 previous_char_was_underscore = true;
                 lexer.advance();
@@ -33,7 +35,9 @@ pub(crate) fn read_number(lexer: &mut Lexer) -> Result<f64> {
             '.' => {
                 // Only allow a single decimal point, and not immediately after '_'
                 if is_float || previous_char_was_underscore {
-                    return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
+                    return Err(ParseError::new(ParseErrorKind::Lexical(
+                        LexicalError::InvalidNumber(number_str),
+                    )));
                 }
                 is_float = true;
                 previous_char_was_underscore = false;
@@ -45,14 +49,21 @@ pub(crate) fn read_number(lexer: &mut Lexer) -> Result<f64> {
     }
 
     if !has_digits {
-        return Err(ParseError::new(ParseErrorKind::InvalidNumber(number_str)));
+        return Err(ParseError::new(ParseErrorKind::Lexical(
+            LexicalError::InvalidNumber(number_str),
+        )));
     }
 
     // Remove underscores from the string that will be parsed
     let clean_number_str: String = number_str.chars().filter(|&c| c != '_').collect();
 
     // Attempt to parse
-    clean_number_str
-        .parse::<f64>()
-        .map_err(|_| ParseError::new(ParseErrorKind::InvalidNumber(number_str)))
+    clean_number_str.parse::<f64>().map_err(|_| {
+        // Check if the number is too large or small
+        if clean_number_str.starts_with('-') {
+            ParseError::new(ParseErrorKind::Lexical(LexicalError::NumberUnderflow))
+        } else {
+            ParseError::new(ParseErrorKind::Lexical(LexicalError::NumberOverflow))
+        }
+    })
 }

@@ -8,7 +8,9 @@ mod json_tests {
     use std::{collections::HashMap, fs};
     use zparse::{
         converter::Converter,
-        parser::{JsonParser, Value},
+        error::{LexicalError, ParseErrorKind, SyntaxError},
+        parser::{config::ParserConfig, JsonParser, Value},
+        utils::parse_json,
     };
 
     fn read_test_file(path: &str) -> String {
@@ -20,7 +22,7 @@ mod json_tests {
     fn test_parse_empty_object() -> Result<(), Box<dyn std::error::Error>> {
         let input = "{}";
         let mut parser = JsonParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Object(HashMap::new()));
+        assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
         Ok(())
     }
 
@@ -73,7 +75,7 @@ mod json_tests {
         expected.insert("age".to_string(), Value::Number(30.0));
         expected.insert("is_student".to_string(), Value::Boolean(false));
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -99,8 +101,8 @@ mod json_tests {
         let value = parser.parse()?;
 
         // Verify structure exists
-        if let Value::Object(root) = value {
-            if let Some(Value::Object(person)) = root.get("person") {
+        if let Value::Map(root) = value {
+            if let Some(Value::Map(person)) = root.get("person") {
                 assert!(person.contains_key("name"));
                 assert!(person.contains_key("contact"));
             } else {
@@ -128,7 +130,7 @@ mod json_tests {
             Value::Boolean(true),
             Value::Null,
             Value::Array(vec![Value::Number(2.5), Value::Boolean(false)]),
-            Value::Object(obj),
+            Value::Map(obj),
         ]);
 
         assert_eq!(value, expected);
@@ -151,7 +153,7 @@ mod json_tests {
         expected.insert("key1".to_string(), Value::String("value1".to_string()));
         expected.insert("key2".to_string(), Value::Number(42.0));
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -167,7 +169,7 @@ mod json_tests {
             Value::String("Hello\nWorld\t\"Escaped\"".to_string()),
         );
 
-        assert_eq!(value, Value::Object(expected));
+        assert_eq!(value, Value::Map(expected));
         Ok(())
     }
 
@@ -191,7 +193,7 @@ mod json_tests {
         let toml_value = Converter::json_to_toml(json_value)?;
 
         // Verify the conversion maintained the structure
-        if let Value::Table(root) = toml_value {
+        if let Value::Map(root) = toml_value {
             assert_eq!(root.get("title"), Some(&Value::String("Test".to_string())));
             assert!(root.contains_key("owner"));
             assert!(root.contains_key("database"));
@@ -213,17 +215,105 @@ mod json_tests {
             ("{key: \"value\"}", "Unquoted key"),
             ("[1, 2,]", "Trailing comma"),
             ("\"unclosed string", "Unclosed string"),
+            // Add new error cases
+            ("\"invalid\\uXYZZ\"", "Invalid Unicode escape"),
+            ("\"bad\\escape\"", "Invalid escape sequence"),
+            ("12e999", "Number overflow"),
+            ("-12e999", "Number underflow"),
+            ("{\"key\":}", "Invalid value"),
+            ("{\"key\" \"value\"}", "Missing colon"),
+            ("{\"key\":1,}", "Trailing comma"),
         ];
 
         for (input, error_desc) in invalid_inputs {
-            // Create parser and check both creation and parsing
             let parser_result = JsonParser::new(input);
             let parse_result = match parser_result {
-                Ok(mut parser) => parser.parse(),
+                Ok(parser) => {
+                    // Test with custom config for security validations
+                    let config = ParserConfig {
+                        max_size: 100,
+                        max_string_length: 20,
+                        max_object_entries: 5,
+                        max_depth: 3,
+                    };
+                    parser.with_config(config).parse()
+                }
                 Err(e) => Err(e),
             };
 
             assert!(parse_result.is_err(), "Expected error for: {}", error_desc);
+
+            // Verify specific error types
+            match parse_result.unwrap_err().kind() {
+                ParseErrorKind::Lexical(_) => {}
+                ParseErrorKind::Syntax(_) => {}
+                ParseErrorKind::Security(_) => {}
+                _ => panic!("Unexpected error type for: {}", error_desc),
+            }
+        }
+    }
+
+    #[test]
+    fn json_missing_comma() {
+        // This JSON is missing a comma between key/value pairs.
+        let input = r#"{"key1": "value1" "key2": "value2"}"#;
+        let result = parse_json(input);
+        assert!(result.is_err(), "Expected error for missing comma");
+
+        let err = result.unwrap_err();
+        match err.kind() {
+            ParseErrorKind::Syntax(SyntaxError::MissingComma) => { /* expected */ }
+            other => panic!("Expected missing comma error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn json_trailing_comma() {
+        // A trailing comma in the JSON object should result in an error.
+        let input = r#"{"key1": "value1", "key2": "value2",}"#;
+        let result = parse_json(input);
+        assert!(result.is_err(), "Expected error for trailing comma");
+
+        let err = result.unwrap_err();
+        // In our JSON parser, a trailing comma causes an unexpected token error.
+        match err.kind() {
+            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(msg)) => {
+                assert!(
+                    msg.contains("Trailing"),
+                    "Error message should mention a trailing comma, got: {}",
+                    msg
+                );
+            }
+            other => panic!(
+                "Expected LexicalError::UnexpectedToken for trailing comma, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn json_invalid_unquoted_value() {
+        // In JSON mode, a bare (unquoted) value is not allowed.
+        let input = r#"{"key": "value", "another_key": value}"#;
+        let result = parse_json(input);
+        assert!(
+            result.is_err(),
+            "Expected error for unquoted string for value"
+        );
+
+        let err = result.unwrap_err();
+        match err.kind() {
+            ParseErrorKind::Lexical(LexicalError::InvalidToken(msg)) => {
+                assert!(
+                    msg.contains("Unexpected char"),
+                    "Error message should indicate an unexpected character, got: {}",
+                    msg
+                );
+            }
+            other => panic!(
+                "Expected LexicalError::InvalidToken due to unquoted value, got {:?}",
+                other
+            ),
         }
     }
 }

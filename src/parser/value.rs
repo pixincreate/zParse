@@ -20,11 +20,9 @@ pub enum Value {
     /// Represents an array of values
     Array(Vec<Value>),
     /// Represents a JSON object or TOML table
-    Object(HashMap<String, Value>),
+    Map(HashMap<String, Value>),
     /// Represents a TOML datetime
     DateTime(String),
-    /// Represents a TOML table
-    Table(HashMap<String, Value>),
 }
 
 impl fmt::Display for Value {
@@ -45,7 +43,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "]")
             }
-            Self::Object(obj) | Self::Table(obj) => {
+            Self::Map(obj) => {
                 write!(f, "{{")?;
                 for (i, (key, val)) in obj.iter().enumerate() {
                     if i > 0 {

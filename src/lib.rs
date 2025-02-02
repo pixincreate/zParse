@@ -17,8 +17,9 @@
 //! }
 //! ```
 
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
+pub mod common;
 pub mod converter;
 pub mod enums;
 pub mod error;
@@ -26,19 +27,20 @@ pub mod formatter;
 pub mod parser;
 pub mod utils;
 
+// Re-exports
 pub use converter::Converter;
-pub use error::{ParseError, ParseErrorKind, Result};
+pub use error::{IOError, ParseError, ParseErrorKind, Result, SemanticError};
 pub use parser::{json::JsonParser, toml::TomlParser, value::Value};
 use utils::{parse_json, parse_toml};
+
+pub use common::value_compare::values_equal;
 
 #[instrument]
 pub fn parse_file(path: &str) -> Result<Value> {
     debug!("Starting to parse file: {}", path);
 
-    let content = std::fs::read_to_string(path).map_err(|e| {
-        error!("Failed to read file: {}", e);
-        ParseError::new(ParseErrorKind::IoError(e.to_string()))
-    })?;
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| ParseError::new(ParseErrorKind::IO(IOError::ReadError(e.to_string()))))?;
 
     info!("File read successfully, determining format");
 
@@ -48,7 +50,9 @@ pub fn parse_file(path: &str) -> Result<Value> {
         parse_toml(&content)
     } else {
         warn!("Unknown file extension");
-        Err(ParseError::new(ParseErrorKind::UnknownFormat))
+        Err(ParseError::new(ParseErrorKind::Semantic(
+            SemanticError::UnknownFormat,
+        )))
     };
 
     debug!("Parsing completed");

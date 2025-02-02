@@ -33,9 +33,9 @@ pub trait FormatConverter {
     /// Common validation for root value
     fn validate_root(value: Value) -> Result<HashMap<String, Value>> {
         match value {
-            Value::Object(map) | Value::Table(map) => Ok(map),
-            _ => Err(ParseError::new(ParseErrorKind::InvalidValue(
-                "Root must be an object/table".to_string(),
+            Value::Map(map) => Ok(map),
+            _ => Err(ParseError::new(ParseErrorKind::Syntax(
+                crate::error::SyntaxError::InvalidValue("Root must be an object/table".to_string()),
             ))),
         }
     }

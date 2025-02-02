@@ -8,7 +8,9 @@ mod toml_tests {
     use std::{collections::HashMap, fs};
     use zparse::{
         converter::Converter,
-        parser::{TomlParser, Value},
+        error::{LexicalError, ParseErrorKind, SecurityError, SemanticError, SyntaxError},
+        parser::{config::ParserConfig, TomlParser, Value},
+        utils::parse_toml,
     };
 
     fn read_test_file(path: &str) -> String {
@@ -20,7 +22,7 @@ mod toml_tests {
     fn test_parse_empty_document() -> Result<(), Box<dyn std::error::Error>> {
         let input = "";
         let mut parser = TomlParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Table(HashMap::new()));
+        assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
         Ok(())
     }
 
@@ -35,7 +37,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert_eq!(
                 root.get("string"),
                 Some(&Value::String("value".to_string()))
@@ -68,9 +70,9 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert!(root.contains_key("server"));
-            if let Some(Value::Table(server)) = root.get("server") {
+            if let Some(Value::Map(server)) = root.get("server") {
                 assert_eq!(
                     server.get("host"),
                     Some(&Value::String("localhost".to_string()))
@@ -98,7 +100,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             // Test numbers array
             if let Some(Value::Array(numbers)) = root.get("numbers") {
                 assert_eq!(numbers.len(), 3);
@@ -154,11 +156,11 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             if let Some(Value::Array(people)) = root.get("people") {
                 assert_eq!(people.len(), 2);
                 // Verify first person
-                if let Value::Table(person) = &people[0] {
+                if let Value::Map(person) = &people[0] {
                     assert_eq!(
                         person.get("name"),
                         Some(&Value::String("Alice".to_string()))
@@ -184,7 +186,7 @@ mod toml_tests {
         let mut parser = TomlParser::new(input)?;
         let value = parser.parse()?;
 
-        if let Value::Table(root) = value {
+        if let Value::Map(root) = value {
             assert_eq!(root.get("key1"), Some(&Value::String("value1".to_string())));
             assert_eq!(root.get("key2"), Some(&Value::Number(42.0)));
             assert!(root.contains_key("section"));
@@ -215,7 +217,7 @@ mod toml_tests {
         let json_value = Converter::toml_to_json(toml_value)?;
 
         // Verify the conversion maintained the structure
-        if let Value::Object(root) = json_value {
+        if let Value::Map(root) = json_value {
             assert_eq!(root.get("title"), Some(&Value::String("Test".to_string())));
             assert!(root.contains_key("owner"));
             assert!(root.contains_key("items"));
@@ -228,26 +230,154 @@ mod toml_tests {
     // Error Cases
     #[test]
     fn test_invalid_toml() {
-        let invalid_inputs = vec![
-            ("[invalid", "Incomplete table header"),
-            ("key = ", "Missing value"),
-            ("= value", "Missing key"),
-            ("[table]\nkey = 42\n[table]", "Duplicate table"),
-            ("[[array]]\nkey = 1\n[array]", "Mixed array and table"),
-            ("key = [1, 2, ]", "Trailing comma in array"),
-            ("[a]\nb = 1\n[a.b]", "Key already defined"),
-            ("[a]\nb = 1\n[[a]]", "Mixed table types"),
+        let long_key = "a".repeat(1025);
+        let long_key_table = format!("[{}]\nvalue = 42\n", long_key);
+
+        let test_cases = vec![
+            // Basic syntax errors
+            (
+                "[invalid",
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(
+                    "EOF. Invalid table header".to_string(),
+                )),
+            ),
+            (
+                "key = ",
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken("EOF".to_string())),
+            ),
+            (
+                "= value",
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken("Equals".to_string())),
+            ),
+            // Duplicate and invalid table errors
+            (
+                "[table]\nkey = 42\n[table]",
+                ParseErrorKind::Syntax(SyntaxError::InvalidValue(
+                    "Duplicate table definition: [table]".to_string(),
+                )),
+            ),
+            (
+                "[[array]]\nkey = 1\n[array]",
+                ParseErrorKind::Semantic(SemanticError::NestedTableError),
+            ),
+            // Array errors
+            (
+                "key = [1, 2, ]",
+                ParseErrorKind::Syntax(SyntaxError::InvalidValue(
+                    "Trailing comma in RightBracket".to_string(),
+                )),
+            ),
+            // Nested table errors
+            (
+                "[a]\nb = 1\n[a.b]",
+                ParseErrorKind::Semantic(SemanticError::TypeMismatch(
+                    "Expected table, found Number(1)".to_string(),
+                )),
+            ),
+            (
+                "[a]\nb = 1\n[[a]]",
+                ParseErrorKind::Semantic(SemanticError::NestedTableError),
+            ),
+            // Security limit error
+            (
+                long_key_table.as_str(),
+                ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded),
+            ),
         ];
 
-        for (input, error_desc) in invalid_inputs {
+        for (input, expected_error) in test_cases {
             let parser_result = TomlParser::new(input);
             let parse_result = match parser_result {
-                Ok(mut parser) => parser.parse(),
+                Ok(parser) => {
+                    let config = ParserConfig {
+                        max_size: 1000000,
+                        max_string_length: 1024,
+                        max_object_entries: 1000,
+                        max_depth: 32,
+                    };
+                    parser.with_config(config).parse()
+                }
                 Err(e) => Err(e),
             };
 
-            println!("Testing '{}': {:?}", error_desc, parse_result);
-            assert!(parse_result.is_err(), "Expected error for: {}", error_desc);
+            assert!(parse_result.is_err(), "Expected error for input: {}", input);
+
+            let actual_error = parse_result.unwrap_err();
+            println!("Testing '{}': {:?}", input, actual_error);
+
+            assert!(
+                match (actual_error.kind(), &expected_error) {
+                    (ParseErrorKind::Lexical(actual), ParseErrorKind::Lexical(expected)) => {
+                        format!("{:?}", actual) == format!("{:?}", expected)
+                    }
+                    (ParseErrorKind::Syntax(actual), ParseErrorKind::Syntax(expected)) => {
+                        format!("{:?}", actual) == format!("{:?}", expected)
+                    }
+                    (ParseErrorKind::Semantic(actual), ParseErrorKind::Semantic(expected)) => {
+                        format!("{:?}", actual) == format!("{:?}", expected)
+                    }
+                    (ParseErrorKind::Security(actual), ParseErrorKind::Security(expected)) => {
+                        format!("{:?}", actual) == format!("{:?}", expected)
+                    }
+                    _ => false,
+                },
+                "Expected {:?}, got {:?} for input: {}",
+                expected_error,
+                actual_error.kind(),
+                input
+            );
+        }
+    }
+
+    #[test]
+    fn toml_max_string_length_exceeded() {
+        // The default max string length is 102_400. This test creates an inline table
+        // with a string value that exceeds that limit.
+        let long_string = "a".repeat(120_000);
+        let input = format!("key = \"{}\"", long_string);
+        let result = parse_toml(&input);
+        assert!(
+            result.is_err(),
+            "Expected error for string length exceeding max"
+        );
+
+        let err = result.unwrap_err();
+        match err.kind() {
+            ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded) => { /* expected */ }
+            other => panic!(
+                "Expected SecurityError::MaxStringLengthExceeded, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn toml_duplicate_table_definition() {
+        // Two table headers with the same name should yield a duplicate error.
+        let input = r#"
+            [table]
+            key = "value"
+
+            [table]
+            key2 = "value2"
+        "#;
+        let result = parse_toml(input);
+        assert!(
+            result.is_err(),
+            "Expected error for duplicate table definition"
+        );
+
+        let err = result.unwrap_err();
+        // The duplicate is detected as a SyntaxError with an InvalidValue message.
+        match err.kind() {
+            ParseErrorKind::Syntax(SyntaxError::InvalidValue(msg)) => {
+                assert!(
+                    msg.contains("Duplicate table definition"),
+                    "Unexpected error message: {}",
+                    msg
+                );
+            }
+            other => panic!("Expected duplicate table definition error, got {:?}", other),
         }
     }
 }

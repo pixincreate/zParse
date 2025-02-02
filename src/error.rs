@@ -90,7 +90,7 @@ pub enum SemanticError {
     NestedTableError,
     /// Type mismatch error
     TypeMismatch(String),
-    /// Error parsing a file due to unknwon format
+    /// Error parsing a file due to unknown format
     UnknownFormat,
 }
 

@@ -2,13 +2,15 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::expect_used)]
 
 use std::fs;
 use zparse::{
     common::value_compare::values_equal,
+    converter::Converter,
+    error::{ParseErrorKind, SemanticError},
     parser::{value::Value, JsonParser, TomlParser},
-    utils::format_json,
-    Converter,
+    utils::{format_json, parse_json},
 };
 
 fn read_test_file(path: &str) -> String {
@@ -176,4 +178,26 @@ fn test_toml_json_toml_roundtrip() {
         compare_values(&toml_value, &converted_back),
         "TOML -> JSON -> TOML conversion did not preserve structure"
     );
+}
+
+#[test]
+fn converter_null_value_error() {
+    // Converting a JSON object containing a null value to TOML should fail
+    // because TOML does not support null values.
+    let input = r#"{"key": null}"#;
+    let json_value = parse_json(input).expect("JSON should parse successfully");
+    let result = Converter::json_to_toml(json_value);
+    assert!(result.is_err(), "Expected converter error for null value");
+
+    let err = result.unwrap_err();
+    match err.kind() {
+        ParseErrorKind::Semantic(SemanticError::TypeMismatch(msg)) => {
+            assert!(
+                msg.contains("TOML does not support null"),
+                "Unexpected error message: {}",
+                msg
+            );
+        }
+        other => panic!("Expected semantic error for null value, got {:?}", other),
+    }
 }

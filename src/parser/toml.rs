@@ -177,49 +177,85 @@ impl TomlParser {
             self.context.enter_nested(&self.config)?;
             path.push(key);
 
-            // Check if this path already exists as a complete table
-            if path.len() == self.current_table.len() && current.contains_key(key) {
-                return Err(ParseError::new(ParseErrorKind::Syntax(
-                    SyntaxError::InvalidValue(format!(
-                        "Duplicate table definition: [{}]",
-                        path.iter()
-                            .map(|s| s.as_str())
-                            .collect::<Vec<_>>()
-                            .join(".")
-                    )),
-                )));
+            // First check if the key exists and if it's a non-table type
+            if let Some(existing) = current.get(key) {
+                match existing {
+                    Value::Map(_) => {
+                        // If this is the final component and it already exists as a table
+                        if path.len() == self.current_table.len() {
+                            return Err(ParseError::new(ParseErrorKind::Syntax(
+                                SyntaxError::InvalidValue(format!(
+                                    "Duplicate table definition: [{}]",
+                                    path.iter()
+                                        .map(|s| s.as_str())
+                                        .collect::<Vec<_>>()
+                                        .join(".")
+                                )),
+                            )));
+                        }
+                    }
+                    Value::Array(_) => {
+                        return Err(ParseError::new(ParseErrorKind::Semantic(
+                            SemanticError::NestedTableError,
+                        )))
+                    }
+                    Value::Number(n) => {
+                        return Err(ParseError::new(ParseErrorKind::Semantic(
+                            SemanticError::TypeMismatch(format!(
+                                "Expected table, found Number({})",
+                                // Format number without decimal point if it's a whole number
+                                if n.fract() == 0.0 {
+                                    n.trunc().to_string()
+                                } else {
+                                    n.to_string()
+                                }
+                            )),
+                        )));
+                    }
+                    other => {
+                        return Err(ParseError::new(ParseErrorKind::Semantic(
+                            SemanticError::TypeMismatch(format!(
+                                "Expected table, found {:?}",
+                                other
+                            )),
+                        )))
+                    }
+                }
             }
 
-            // Handle existing key
-            match current.get(key) {
-                Some(Value::Map(_)) => {
-                    current = match current.get_mut(key) {
-                        Some(Value::Map(table)) => table,
-                        _ => {
+            // Handle existing or create new key
+            match current.entry(key.clone()) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(Value::Map(HashMap::new()));
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    match entry.get_mut() {
+                        Value::Map(_) => {} // OK - continue traversing
+                        Value::Array(_) => {
                             return Err(ParseError::new(ParseErrorKind::Semantic(
                                 SemanticError::NestedTableError,
                             )))
                         }
-                    };
-                }
-                Some(other) => {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::TypeMismatch(format!("Expected table, found {:?}", other)),
-                    )));
-                }
-                None => {
-                    // Create new table
-                    current.insert(key.clone(), Value::Map(HashMap::new()));
-                    current = match current.get_mut(key) {
-                        Some(Value::Map(table)) => table,
-                        _ => {
+                        other => {
                             return Err(ParseError::new(ParseErrorKind::Semantic(
-                                SemanticError::NestedTableError,
+                                SemanticError::TypeMismatch(format!(
+                                    "Expected table, found {:?}",
+                                    other
+                                )),
                             )))
                         }
-                    };
+                    }
                 }
             }
+
+            current = match current.get_mut(key) {
+                Some(Value::Map(table)) => table,
+                _ => {
+                    return Err(ParseError::new(ParseErrorKind::Semantic(
+                        SemanticError::NestedTableError,
+                    )))
+                }
+            };
 
             self.context.exit_nested();
         }

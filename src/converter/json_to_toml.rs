@@ -4,7 +4,7 @@
 //! - Structural differences between JSON and TOML
 //! - Type mapping between formats
 //! - Validation of TOML restrictions
-//!
+
 use crate::common::converter::CommonConverter;
 use crate::error::{ParseError, ParseErrorKind, Result, SemanticError};
 use crate::parser::Value;
@@ -14,7 +14,7 @@ pub struct JsonToTomlConverter;
 
 impl CommonConverter for JsonToTomlConverter {
     fn convert_map(map: HashMap<String, Value>) -> Result<Value> {
-        let temp_map = Self::convert_map_inner(map).unwrap_or_default();
+        let temp_map = Self::convert_map_inner(map)?;
         Ok(Value::Map(temp_map))
     }
 

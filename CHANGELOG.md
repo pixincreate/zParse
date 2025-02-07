@@ -1,8 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Feat
+
+- Reduce duplicate code in JSON and TOML parsers
+- Modularise the parser code for better maintainability
+- Enforce security checks for input data to prevent buffer overflows and memory leaks
+
+### Improved
+
+- Documentation coverage for all public APIs
+- Error handling and reporting for edge cases
+- Performance optimizations for parsing and conversion
+
+### CI
+
+- Stop fuzzing on windows due to compatibility issues (`libfuzzer` is not supported on Windows platform)
+- Refactor release script to automate versioning and changelog generation
+
+### Chore
+- Update dependencies to latest versions
+- Update license information in README
+- Add templates and guidelines for contributing
+
 ## [v1.0.0]
 
-### Added
+### Feat
+
 - Complete rewrite of the library with zero external dependencies for core functionality
 - JSON parser
   - Support for all JSON data types (null, boolean, number, string, array, object)
@@ -58,6 +83,7 @@
   - Error reporting
 
 ### Improved
+
 - Memory efficiency through string interning
 - Performance optimizations for parsing
 - Thread safety with parking_lot
@@ -66,6 +92,7 @@
 - Code organization and modularity
 
 ### Security
+
 - Regular security audits through cargo-audit
 - Fuzzing infrastructure for finding vulnerabilities
 - No unsafe code usage
@@ -73,7 +100,8 @@
 
 ## [v0.1.0]
 
-### Added
+### Feat
+
 - Initial release with basic functionality
 - Basic JSON and TOML parsing
 - Simple conversion between formats

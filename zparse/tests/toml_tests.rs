@@ -5,21 +5,12 @@
 
 #[cfg(test)]
 mod toml_tests {
-    use std::{collections::HashMap, fs};
-    use zparse::{
-        converter::Converter,
-        error::{LexicalError, ParseErrorKind, SecurityError, SemanticError, SyntaxError},
-        parser::{config::ParserConfig, TomlParser, Value},
-        utils::parse_toml,
-    };
-
-    fn read_test_file(path: &str) -> String {
-        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path))
-    }
+    use std::collections::HashMap;
+    use zparse::test_utils::*;
 
     // Basic Parsing Tests
     #[test]
-    fn test_parse_empty_document() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_empty_document() -> Result<()> {
         let input = "";
         let mut parser = TomlParser::new(input)?;
         assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
@@ -27,7 +18,7 @@ mod toml_tests {
     }
 
     #[test]
-    fn test_parse_basic_pairs() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_basic_pairs() -> Result<()> {
         let input = r#"
             string = "value"
             integer = 42
@@ -53,7 +44,7 @@ mod toml_tests {
 
     // Table Tests
     #[test]
-    fn test_parse_nested_tables() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_nested_tables() -> Result<()> {
         let input = r#"
             [server]
             host = "localhost"
@@ -90,7 +81,7 @@ mod toml_tests {
 
     // Array Tests
     #[test]
-    fn test_parse_arrays() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_arrays() -> Result<()> {
         let input = r#"
             numbers = [1, 2, 3]
             strings = ["a", "b", "c"]
@@ -123,19 +114,23 @@ mod toml_tests {
     }
 
     #[test]
-    fn test_large_toml_parsing_performance() {
-        let large_toml = read_test_file("tests/input/large.toml");
+    fn test_large_toml_parsing_performance() -> Result<()> {
+        let test_data = TestData::load()?;
+
         let start = std::time::Instant::now();
-        let mut parser = TomlParser::new(&large_toml).unwrap();
-        let _ = parser.parse().unwrap();
+        let mut toml_parser = TomlParser::new(&test_data.large_toml)?;
+        let _ = toml_parser.parse()?;
         let duration = start.elapsed();
+
         println!("Time taken to parse large TOML: {:?}", duration);
         assert!(duration.as_secs() < 1, "Parsing took too long");
+
+        Ok(())
     }
 
     // Array Table Tests
     #[test]
-    fn test_parse_array_tables() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_array_tables() -> Result<()> {
         let input = r#"
             [[people]]
             name = "Alice"
@@ -176,7 +171,7 @@ mod toml_tests {
 
     // Edge Cases
     #[test]
-    fn test_parse_whitespace() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_whitespace() -> Result<()> {
         let input = r#"
             key1    =    "value1"
             key2    =    42
@@ -196,7 +191,7 @@ mod toml_tests {
 
     // Conversion Tests
     #[test]
-    fn test_toml_to_json_conversion() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_toml_to_json_conversion() -> Result<()> {
         let input = r#"
             title = "Test"
             [owner]

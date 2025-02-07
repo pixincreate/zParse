@@ -4,10 +4,7 @@
 #![allow(clippy::panic_in_result_fn)]
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use zparse::{
-    parser::{JsonParser, TomlParser},
-    Converter,
-};
+use zparse::test_utils::*;
 
 // Benchmark JSON parsing
 fn bench_json_parser(c: &mut Criterion) {

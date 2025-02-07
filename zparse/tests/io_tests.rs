@@ -3,25 +3,9 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-use std::env;
 use std::fs;
-use std::path::PathBuf;
 
-use zparse::utils::{format_json, format_toml, read_file, write_file};
-use zparse::{
-    error::{ParseErrorKind, SemanticError},
-    parse_file,
-};
-
-// Helper to create a temporary file path in the system temporary directory.
-fn tmp_file_path(name: &str) -> PathBuf {
-    let mut dir = env::temp_dir();
-    dir.push("zparse_io_tests");
-    // Create the directory if it does not exist.
-    let _ = fs::create_dir_all(&dir);
-    dir.push(name);
-    dir
-}
+use zparse::test_utils::*;
 
 #[test]
 fn file_read_error() {

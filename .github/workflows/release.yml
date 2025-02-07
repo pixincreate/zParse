@@ -59,8 +59,19 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
+      # Add cross-compilation support
+      - name: Install cross-compilation tools
+        if: matrix.platform.target == 'aarch64-apple-darwin'
+        run: |
+          brew install FiloSottile/musl-cross/musl-cross
+          rustup target add aarch64-apple-darwin
+
+      # Build the specific package
       - name: Build Binary
-        run: cargo build --release --target ${{ matrix.platform.target }}
+        run: |
+          cargo build --release --target ${{ matrix.platform.target }} -p zparse
+        env:
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: aarch64-apple-darwin-gcc
 
       - name: Prepare Asset
         shell: bash
@@ -69,11 +80,24 @@ jobs:
           cp target/${{ matrix.platform.target }}/release/zparse${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
              release/${{ env.BINARY_NAME }}
 
+      # Create checksum
+      - name: Generate SHA-256
+        run: |
+          cd release
+          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
+            certutil -hashfile ${{ env.BINARY_NAME }} SHA256 | grep -v "hash" > ${{ env.BINARY_NAME }}.sha256
+          else
+            shasum -a 256 ${{ env.BINARY_NAME }} > ${{ env.BINARY_NAME }}.sha256
+          fi
+
+      # Create Release
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           name: "zParse ${{ github.ref_name }}"
-          files: release/${{ env.BINARY_NAME }}
+          files: |
+            release/${{ env.BINARY_NAME }}
+            release/${{ env.BINARY_NAME }}.sha256
           body: ${{ steps.release-notes.outputs.NOTES }}
           draft: false
           prerelease: false

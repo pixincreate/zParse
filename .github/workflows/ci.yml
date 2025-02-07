@@ -83,11 +83,23 @@ jobs:
         with:
           save-if: ${{ github.event_name == 'push' }}
 
+      # Skip fuzz tests on Windows
       - name: Run tests (debug)
+        if: runner.os != 'Windows'
         run: cargo test --all-features --all-targets
 
+      # Windows-specific test command
+      - name: Run tests (debug) - Windows
+        if: runner.os == 'Windows'
+        run: cargo test --package zparse --all-features --all-targets
+
       - name: Run tests (release)
+        if: runner.os != 'Windows'
         run: cargo test --release --all-features --all-targets
+
+      - name: Run tests (release) - Windows
+        if: runner.os == 'Windows'
+        run: cargo test --package zparse --release --all-features --all-targets
 
       - name: Run Clippy
         run: cargo clippy --all-features --all-targets -- -D warnings

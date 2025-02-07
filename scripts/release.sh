@@ -22,15 +22,40 @@ if [ -z "$1" ]; then
 fi
 
 VERSION="$1"
-ZPARSE_VERSION="version = \"$VERSION\""
+CRATE_VERSION="version = \"$VERSION\""
+DATE=$(date +%Y-%m-%d)
 
 # Update version in workspace Cargo.toml
-sed -i.bak "s/^version = .*/$ZPARSE_VERSION/" Cargo.toml
+sed -i.bak "s/^version = .*/$CRATE_VERSION/" Cargo.toml
+rm Cargo.toml.bak  # Clean up backup file
 
-# Commit changes
-git add Cargo.toml
-git commit -m "chore: bump version to $VERSION"
+# Update CHANGELOG.md
+sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
+rm CHANGELOG.md.bak  # Clean up backup file
 
-# Create and push tag
-git tag -a "v$VERSION" -m "zParse v$VERSION"
-git push origin main "v$VERSION"
+# Show changes
+echo "Changes made:"
+echo "------------"
+git diff
+
+# Prompt for confirmation
+read -p "Do you want to commit these changes and create tag v$VERSION? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    # Commit changes
+    git add Cargo.toml CHANGELOG.md
+    git commit -m "chore: release version $VERSION"
+
+    # Create and push tag
+    git tag -a "v$VERSION" -m "zParse v$VERSION"
+
+    echo "Pushing changes..."
+    git push origin main "v$VERSION"
+
+    echo "zParse release v$VERSION prepared and pushed!"
+else
+    # Revert changes if user doesn't confirm
+    git checkout Cargo.toml CHANGELOG.md
+    echo "zParse release cancelled and changes reverted"
+fi

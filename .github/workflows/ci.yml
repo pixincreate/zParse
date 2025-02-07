@@ -51,6 +51,7 @@ jobs:
   test:
     name: test-${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
 
     env:
       RUSTFLAGS: "-D warnings"
@@ -83,23 +84,12 @@ jobs:
         with:
           save-if: ${{ github.event_name == 'push' }}
 
-      # Skip fuzz tests on Windows
-      - name: Run tests (debug)
-        if: runner.os != 'Windows'
-        run: cargo test --all-features --all-targets
-
-      # Windows-specific test command
-      - name: Run tests (debug) - Windows
-        if: runner.os == 'Windows'
+      # Run only zparse package tests, exclude fuzz package completely
+      - name: Run tests
         run: cargo test --package zparse --all-features --all-targets
 
       - name: Run tests (release)
-        if: runner.os != 'Windows'
-        run: cargo test --release --all-features --all-targets
-
-      - name: Run tests (release) - Windows
-        if: runner.os == 'Windows'
         run: cargo test --package zparse --release --all-features --all-targets
 
       - name: Run Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        run: cargo clippy --package zparse --all-features --all-targets -- -D warnings

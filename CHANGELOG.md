@@ -24,7 +24,7 @@
 - Update license information in README
 - Add templates and guidelines for contributing
 
-## [v1.0.0]
+## [v1.0.0] - 2025-01-26
 
 ### Feat
 
@@ -98,7 +98,7 @@
 - No unsafe code usage
 - Input validation and size limits
 
-## [v0.1.0]
+## [v0.1.0] - 2024-12-30
 
 ### Feat
 

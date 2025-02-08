@@ -149,17 +149,24 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            ParseErrorKind::IO(err) => write!(f, "IO error: {}", err),
-            ParseErrorKind::Lexical(err) => write!(f, "Lexical error: {}", err),
-            ParseErrorKind::Security(err) => write!(f, "Security error: {}", err),
-            ParseErrorKind::Semantic(err) => write!(f, "Semantic error: {}", err),
-            ParseErrorKind::Syntax(err) => write!(f, "Syntax error: {}", err),
-        }?;
+        let context = match &self.kind {
+            ParseErrorKind::IO(err) => format!("IO error occurred: {}", err),
+            ParseErrorKind::Lexical(err) => format!("Lexical analysis failed: {}", err),
+            ParseErrorKind::Security(err) => format!("Security check failed: {}", err),
+            ParseErrorKind::Semantic(err) => format!("Semantic validation failed: {}", err),
+            ParseErrorKind::Syntax(err) => format!("Syntax error encountered: {}", err),
+        };
+
+        write!(f, "{}", context)?;
 
         if let Some(loc) = &self.location {
             write!(f, " at line {}, column {}", loc.line, loc.column)?;
         }
+
+        if let Some(source) = &self.source {
+            write!(f, "\nCaused by: {}", source)?;
+        }
+
         Ok(())
     }
 }

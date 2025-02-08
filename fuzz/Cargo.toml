@@ -1,18 +1,18 @@
 [package]
 name = "zparse-fuzz"
-version = "1.0.0"
+version.workspace = true
+edition.workspace = true
 publish = false
-edition = "2021"
-license = "GPL-3.0"
+license.workspace = true
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = "0.4.9"
 
 [dependencies.zparse]
-path = ".."
+path = "../zparse"
 
 # Fuzz target declarations
 [[bin]]

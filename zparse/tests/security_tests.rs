@@ -1,8 +1,3 @@
-#![allow(clippy::panic_in_result_fn)]
-#![allow(clippy::panic)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
-
 use zparse::error::{ParseErrorKind, SecurityError};
 use zparse::parser::config::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_OBJECT_ENTRIES, DEFAULT_MAX_SIZE};
 use zparse::parser::{JsonParser, TomlParser};

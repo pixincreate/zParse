@@ -1,41 +1,39 @@
 #![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::indexing_slicing)]
 
 #[cfg(test)]
 mod json_tests {
-    use std::{collections::HashMap, fs};
-    use zparse::{
-        converter::Converter,
-        error::{LexicalError, ParseErrorKind, SyntaxError},
-        parser::{config::ParserConfig, JsonParser, Value},
-        utils::parse_json,
-    };
-
-    fn read_test_file(path: &str) -> String {
-        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path))
-    }
+    use std::collections::HashMap;
+    use zparse::test_utils::*;
 
     // Basic Parsing Tests
     #[test]
-    fn test_parse_empty_object() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_empty_object() -> Result<()> {
         let input = "{}";
         let mut parser = JsonParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Map(HashMap::new()));
+        let json_value = parser.parse()?;
+        let empty_map = Value::Map(HashMap::new());
+
+        assert_values_equal(&json_value, &empty_map, "Empty object failed to parse");
+
         Ok(())
     }
 
     #[test]
-    fn test_parse_empty_array() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_empty_array() -> Result<()> {
         let input = "[]";
         let mut parser = JsonParser::new(input)?;
-        assert_eq!(parser.parse()?, Value::Array(vec![]));
+        let json_value = parser.parse()?;
+        let empty_array = Value::Array(vec![]);
+
+        assert_values_equal(&json_value, &empty_array, "Empty array failed to parse");
+
         Ok(())
     }
 
     #[test]
-    fn test_parse_primitive_values() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_primitive_values() -> Result<()> {
         let inputs = vec![
             ("42", Value::Number(42.0)),
             ("-42.5", Value::Number(-42.5)),
@@ -47,25 +45,30 @@ mod json_tests {
 
         for (input, expected) in inputs {
             let mut parser = JsonParser::new(input)?;
-            assert_eq!(parser.parse()?, expected);
+            let json_value = parser.parse()?;
+            assert_values_equal(&json_value, &expected, "Primitive value failed to parse");
         }
         Ok(())
     }
 
     #[test]
-    fn test_large_json_parsing_performance() {
-        let large_json = read_test_file("tests/input/large.json");
+    fn test_large_json_parsing_performance() -> Result<()> {
+        let test_data = TestData::load()?;
+
         let start = std::time::Instant::now();
-        let mut parser = JsonParser::new(&large_json).unwrap();
-        let _ = parser.parse().unwrap();
+        let mut json_parser = JsonParser::new(&test_data.large_json)?;
+        let _ = json_parser.parse()?;
         let duration = start.elapsed();
+
         println!("Time taken to parse large JSON: {:?}", duration);
         assert!(duration.as_secs() < 1, "Parsing took too long");
+
+        Ok(())
     }
 
     // Object Tests
     #[test]
-    fn test_parse_simple_object() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_simple_object() -> Result<()> {
         let input = r#"{"name": "John", "age": 30, "is_student": false}"#;
         let mut parser = JsonParser::new(input)?;
         let value = parser.parse()?;
@@ -76,11 +79,12 @@ mod json_tests {
         expected.insert("is_student".to_string(), Value::Boolean(false));
 
         assert_eq!(value, Value::Map(expected));
+
         Ok(())
     }
 
     #[test]
-    fn test_parse_nested_objects() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_nested_objects() -> Result<()> {
         let input = r#"
         {
             "person": {
@@ -116,7 +120,7 @@ mod json_tests {
 
     // Array Tests
     #[test]
-    fn test_parse_arrays() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_arrays() -> Result<()> {
         let input = r#"[1, "two", true, null, [2.5, false], {"key": "value"}]"#;
         let mut parser = JsonParser::new(input)?;
         let value = parser.parse()?;
@@ -139,7 +143,7 @@ mod json_tests {
 
     // Edge Cases
     #[test]
-    fn test_parse_whitespace() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_whitespace() -> Result<()> {
         let input = r#"
         {
             "key1"     :    "value1"    ,
@@ -158,7 +162,7 @@ mod json_tests {
     }
 
     #[test]
-    fn test_parse_escaped_strings() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_escaped_strings() -> Result<()> {
         let input = r#"{"text": "Hello\nWorld\t\"Escaped\""}"#;
         let mut parser = JsonParser::new(input)?;
         let value = parser.parse()?;
@@ -175,7 +179,7 @@ mod json_tests {
 
     // Conversion Tests
     #[test]
-    fn test_json_to_toml_conversion() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_json_to_toml_conversion() -> Result<()> {
         let input = r#"{
             "title": "Test",
             "owner": {

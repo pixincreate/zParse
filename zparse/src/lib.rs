@@ -25,6 +25,7 @@ pub mod enums;
 pub mod error;
 pub mod formatter;
 pub mod parser;
+pub mod test_utils;
 pub mod utils;
 
 // Re-exports

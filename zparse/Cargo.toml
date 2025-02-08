@@ -1,0 +1,60 @@
+[package]
+name = "zparse"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version = "1.82.0"
+description = "A robust parser and converter library for JSON and TOML files written in Rust."
+license.workspace = true
+
+[dependencies]
+clap = { version = "4.5.28", features = ["std", "derive", "help", "usage"] }
+tracing = "0.1.41"
+parking_lot = "0.12.3"
+
+[dev-dependencies]
+proptest = "1.6.0"
+criterion = "0.5.1"
+
+[[bench]]
+name = "parser_benchmarks"
+harness = false
+
+[lints.rust]
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+
+[lints.clippy]
+as_conversions = "warn"
+cloned_instead_of_copied = "warn"
+dbg_macro = "warn"
+expect_used = "warn"
+fn_params_excessive_bools = "warn"
+index_refutable_slice = "warn"
+indexing_slicing = "warn"
+large_futures = "warn"
+match_on_vec_items = "warn"
+missing_panics_doc = "warn"
+mod_module_files = "warn"
+out_of_bounds_indexing = "warn"
+panic = "warn"
+panic_in_result_fn = "warn"
+panicking_unwrap = "warn"
+print_stderr = "warn"
+print_stdout = "allow"
+todo = "warn"
+trivially_copy_pass_by_ref = "warn"
+unimplemented = "warn"
+unnecessary_self_imports = "warn"
+unreachable = "warn"
+unwrap_in_result = "warn"
+unwrap_used = "warn"
+use_self = "warn"
+wildcard_dependencies = "warn"
+option_map_unit_fn = "allow"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

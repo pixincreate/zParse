@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ParseErrorKind, Result};
+use crate::error::{ParseError, ParseErrorKind, Result, SecurityError};
 
 /// Maximum nesting depth (32) based on common JSON/TOML usage patterns
 pub const DEFAULT_MAX_DEPTH: usize = 32;
@@ -44,7 +44,7 @@ impl ParserConfig {
     pub fn validate_string(&self, s: &str) -> Result<()> {
         if s.len() > self.max_string_length {
             return Err(ParseError::new(ParseErrorKind::Security(
-                crate::error::SecurityError::MaxStringLengthExceeded,
+                SecurityError::MaxStringLengthExceeded,
             )));
         }
         Ok(())
@@ -53,7 +53,7 @@ impl ParserConfig {
     pub fn validate_object_entries(&self, count: usize) -> Result<()> {
         if count > self.max_object_entries {
             return Err(ParseError::new(ParseErrorKind::Security(
-                crate::error::SecurityError::MaxObjectEntriesExceeded,
+                SecurityError::MaxObjectEntriesExceeded,
             )));
         }
         Ok(())
@@ -78,7 +78,7 @@ impl ParsingContext {
         self.current_depth += 1;
         if self.current_depth > config.max_depth {
             return Err(ParseError::new(ParseErrorKind::Security(
-                crate::error::SecurityError::MaxDepthExceeded,
+                SecurityError::MaxDepthExceeded,
             )));
         }
         Ok(())
@@ -94,7 +94,7 @@ impl ParsingContext {
         self.current_size += size;
         if self.current_size > config.max_size {
             return Err(ParseError::new(ParseErrorKind::Security(
-                crate::error::SecurityError::MaxSizeExceeded,
+                SecurityError::MaxSizeExceeded,
             )));
         }
         Ok(())

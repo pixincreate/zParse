@@ -13,8 +13,10 @@ pub use crate::{
     common::value_compare::values_equal,
     converter::Converter,
     error::{
-        LexicalError, ParseError, ParseErrorKind, Result, SecurityError, SemanticError, SyntaxError,
+        FormatError, LexicalError, ParseError, ParseErrorKind, Result, SecurityError,
+        SemanticError, SyntaxError,
     },
+    formatter::{FormatConfig, Formatter, JsonFormatter},
     parse_file,
     parser::{config::ParserConfig, JsonParser, TomlParser, Value},
     utils::{format_json, format_toml, parse_json, parse_toml, read_file, write_file},

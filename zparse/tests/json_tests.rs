@@ -366,4 +366,27 @@ mod json_tests {
             panic!("Expected error location information");
         }
     }
+
+    #[test]
+    fn test_json_formatter_errors() {
+        let formatter = JsonFormatter;
+        let config = FormatConfig {
+            indent_spaces: 100, // Invalid indentation
+            sort_keys: true,
+        };
+
+        let mut map = HashMap::new();
+        map.insert("key".to_string(), Value::String("value".to_string()));
+        let value = Value::Map(map);
+
+        let result = formatter.format(&value, &config);
+
+        assert!(result.is_err(), "Expected error for invalid indentation");
+        if let Err(e) = result {
+            match e.kind() {
+                ParseErrorKind::Format(FormatError::InvalidIndentation(_)) => {}
+                other => panic!("Expected InvalidIndentation error, got {:?}", other),
+            }
+        }
+    }
 }

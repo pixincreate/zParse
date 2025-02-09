@@ -36,10 +36,10 @@ pub fn parse_toml(content: &str) -> Result<Value> {
     parser.parse()
 }
 
-pub fn format_json(value: &Value) -> String {
+pub fn format_json(value: &Value) -> Result<String> {
     JsonFormatter.format(value, &FormatConfig::default())
 }
 
-pub fn format_toml(value: &Value) -> String {
+pub fn format_toml(value: &Value) -> Result<String> {
     TomlFormatter.format(value, &FormatConfig::default())
 }

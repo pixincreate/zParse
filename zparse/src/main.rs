@@ -86,8 +86,8 @@ fn run() -> Result<()> {
 
     // Format the output
     let formatted_output = match output_format {
-        "json" => format_json(&final_value),
-        "toml" => format_toml(&final_value),
+        "json" => format_json(&final_value)?,
+        "toml" => format_toml(&final_value)?,
         _ => {
             return Err(ParseError::new(ParseErrorKind::Semantic(
                 SemanticError::UnknownFormat,

@@ -33,6 +33,7 @@ pub struct Location {
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
     Conversion(ConversionError),
+    Format(FormatError),
     IO(IOError),
     Lexical(LexicalError),
     Security(SecurityError),
@@ -45,6 +46,17 @@ pub enum ParseErrorKind {
 pub enum ConversionError {
     /// Unsupported value type
     UnsupportedValue(String),
+}
+
+/// Format errors
+#[derive(Debug, Clone)]
+pub enum FormatError {
+    /// Invalid indentation in the input
+    InvalidIndentation(String),
+    /// Invalid value in the input
+    InvalidValue(String),
+    /// Error serializing a value
+    SerializationFailed(String),
 }
 
 /// Lexical analysis errors
@@ -174,6 +186,7 @@ impl fmt::Display for ParseError {
         // Start with base error description
         let base_error = match &self.kind {
             ParseErrorKind::Conversion(err) => err.to_string(),
+            ParseErrorKind::Format(err) => err.to_string(),
             ParseErrorKind::IO(err) => err.to_string(),
             ParseErrorKind::Lexical(err) => err.to_string(),
             ParseErrorKind::Security(err) => err.to_string(),
@@ -210,6 +223,16 @@ impl fmt::Display for ConversionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedValue(v) => write!(f, "Unsupported value: '{}'", v),
+        }
+    }
+}
+
+impl fmt::Display for FormatError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidIndentation(i) => write!(f, "Invalid indentation: '{}'", i),
+            Self::InvalidValue(v) => write!(f, "Invalid value: '{}'", v),
+            Self::SerializationFailed(s) => write!(f, "Serialization failed: '{}'", s),
         }
     }
 }

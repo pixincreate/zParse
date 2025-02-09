@@ -293,14 +293,12 @@ mod toml_tests {
     fn test_invalid_toml() {
         let long_key = "a".repeat(1025);
         let long_key_table = format!("[{}]\nvalue = 42\n", long_key);
-    
+
         let test_cases = vec![
             // Basic syntax errors
             (
                 "[invalid",
-                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(
-                    "EOF".to_string(), 
-                )),
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken("EOF".to_string())),
             ),
             (
                 "key = ",
@@ -325,7 +323,7 @@ mod toml_tests {
             (
                 "key = [1, 2, ]",
                 ParseErrorKind::Syntax(SyntaxError::InvalidValue(
-                    "Trailing comma in array".to_string(), 
+                    "Trailing comma in array".to_string(),
                 )),
             ),
             // Nested table errors
@@ -345,7 +343,7 @@ mod toml_tests {
                 ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded),
             ),
         ];
-    
+
         for (input, expected_error) in test_cases {
             let parser_result = TomlParser::new(input);
             let parse_result = match parser_result {
@@ -360,12 +358,12 @@ mod toml_tests {
                 }
                 Err(e) => Err(e),
             };
-    
+
             assert!(parse_result.is_err(), "Expected error for input: {}", input);
-    
+
             let actual_error = parse_result.unwrap_err();
             println!("Testing '{}': {:?}", input, actual_error);
-    
+
             // Compare error kinds more flexibly
             match (actual_error.kind(), &expected_error) {
                 (ParseErrorKind::Lexical(actual), ParseErrorKind::Lexical(expected)) => {

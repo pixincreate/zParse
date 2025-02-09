@@ -32,11 +32,19 @@ pub struct Location {
 /// Top-level error categories
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
+    Conversion(ConversionError),
     IO(IOError),
     Lexical(LexicalError),
     Security(SecurityError),
     Semantic(SemanticError),
     Syntax(SyntaxError),
+}
+
+/// Conversion errors
+#[derive(Debug, Clone)]
+pub enum ConversionError {
+    /// Unsupported value type
+    UnsupportedValue(String),
 }
 
 /// Lexical analysis errors
@@ -165,6 +173,7 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Start with base error description
         let base_error = match &self.kind {
+            ParseErrorKind::Conversion(err) => err.to_string(),
             ParseErrorKind::IO(err) => err.to_string(),
             ParseErrorKind::Lexical(err) => err.to_string(),
             ParseErrorKind::Security(err) => err.to_string(),
@@ -194,6 +203,14 @@ impl fmt::Display for ParseError {
         }
 
         Ok(())
+    }
+}
+
+impl fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedValue(v) => write!(f, "Unsupported value: '{}'", v),
+        }
     }
 }
 

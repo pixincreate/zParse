@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use zparse::test_utils::*;
+use zparse::{error::ConversionError, test_utils::*};
 
 #[test]
 fn test_json_to_toml_conversion() -> Result<()> {
@@ -141,13 +141,37 @@ fn converter_null_value_error() {
 
     let err = result.unwrap_err();
     match err.kind() {
-        ParseErrorKind::Semantic(SemanticError::TypeMismatch(msg)) => {
+        // Update this match arm to expect ConversionError instead of SemanticError
+        ParseErrorKind::Conversion(ConversionError::UnsupportedValue(msg)) => {
             assert!(
-                msg.contains("TOML does not support null"),
+                msg.contains("Null value"),
                 "Unexpected error message: {}",
                 msg
             );
         }
-        other => panic!("Expected semantic error for null value, got {:?}", other),
+        other => panic!("Expected conversion error for null value, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_array_with_null_conversion() {
+    let input = r#"{"array": [1, null, 3]}"#;
+    let json_value = parse_json(input).expect("JSON should parse successfully");
+    let result = Converter::json_to_toml(json_value);
+    assert!(result.is_err(), "Expected error for array containing null");
+
+    let err = result.unwrap_err();
+    match err.kind() {
+        ParseErrorKind::Conversion(ConversionError::UnsupportedValue(msg)) => {
+            assert!(
+                msg.contains("Null values in arrays"),
+                "Unexpected error message: {}",
+                msg
+            );
+        }
+        other => panic!(
+            "Expected conversion error for array with null, got {:?}",
+            other
+        ),
     }
 }

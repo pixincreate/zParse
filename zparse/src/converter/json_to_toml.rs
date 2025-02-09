@@ -6,7 +6,7 @@
 //! - Validation of TOML restrictions
 
 use crate::common::converter::CommonConverter;
-use crate::error::{ParseError, ParseErrorKind, Result, SemanticError};
+use crate::error::{ConversionError, Location, ParseErrorKind, Result};
 use crate::parser::Value;
 use std::collections::HashMap;
 
@@ -19,6 +19,17 @@ impl CommonConverter for JsonToTomlConverter {
     }
 
     fn convert_array(arr: Vec<Value>) -> Result<Value> {
+        // Check for nested null values in arrays
+        if arr.iter().any(|v| matches!(v, Value::Null)) {
+            let location = Location::new(0, 0);
+            return Err(location.create_error(
+                ParseErrorKind::Conversion(ConversionError::UnsupportedValue(
+                    "Null values in arrays".to_string(),
+                )),
+                "TOML arrays cannot contain null values",
+            ));
+        }
+
         let converted = arr
             .into_iter()
             .map(Self::convert_value)
@@ -29,18 +40,16 @@ impl CommonConverter for JsonToTomlConverter {
     fn convert_value(value: Value) -> Result<Value> {
         match value {
             Value::Map(map) => Self::convert_map(map),
-            Value::Array(arr) => {
-                // Check for nested null values in arrays
-                if arr.iter().any(|v| matches!(v, Value::Null)) {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::TypeMismatch("TOML arrays cannot contain null".to_string()),
-                    )));
-                }
-                Self::convert_array(arr)
+            Value::Array(arr) => Self::convert_array(arr),
+            Value::Null => {
+                let location = Location::new(0, 0);
+                Err(location.create_error(
+                    ParseErrorKind::Conversion(ConversionError::UnsupportedValue(
+                        "Null value".to_string(),
+                    )),
+                    "TOML does not support null values",
+                ))
             }
-            Value::Null => Err(ParseError::new(ParseErrorKind::Semantic(
-                SemanticError::TypeMismatch("TOML does not support null values".to_string()),
-            ))),
             _ => Ok(value),
         }
     }

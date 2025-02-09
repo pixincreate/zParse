@@ -175,3 +175,77 @@ fn test_array_with_null_conversion() {
         ),
     }
 }
+
+#[test]
+fn test_error_location_tracking() -> Result<()> {
+    let input = r#"{"key": null}"#; // Invalid TOML value
+    let json_value = parse_json(input)?;
+    let result = Converter::json_to_toml(json_value);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+
+    // Verify location info
+    if let Some(loc) = err.location() {
+        assert_eq!(loc.line, 1, "Error should be on first line");
+        assert_eq!(loc.column, 6, "Error should point to null value position");
+
+        match err.kind() {
+            ParseErrorKind::Conversion(ConversionError::UnsupportedValue(msg)) => {
+                assert!(msg.contains("Null value"), "Expected null value error");
+            }
+            other => panic!(
+                "Expected ConversionError::UnsupportedValue, got {:?}",
+                other
+            ),
+        }
+    } else {
+        panic!("Missing location info");
+    }
+    Ok(())
+}
+
+#[test]
+fn test_nested_location_tracking() -> Result<()> {
+    let input = r#"{
+        "outer": {
+            "inner": null
+        }
+    }"#;
+    let json_value = parse_json(input)?;
+    let result = Converter::json_to_toml(json_value);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+
+    if let Some(loc) = err.location() {
+        // Check that we have reasonable location values
+        assert!(loc.line > 0, "Should have a line number");
+        assert!(loc.column > 0, "Should have a column number");
+
+        // Verify error context contains path information
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("outer.inner"),
+            "Error should contain path information: {}",
+            err_msg
+        );
+
+        // Verify error kind
+        match err.kind() {
+            ParseErrorKind::Conversion(ConversionError::UnsupportedValue(msg)) => {
+                assert!(
+                    msg.contains("Null value"),
+                    "Error message should mention null value"
+                );
+            }
+            other => panic!(
+                "Expected ConversionError::UnsupportedValue, got {:?}",
+                other
+            ),
+        }
+    } else {
+        panic!("Missing location info");
+    }
+    Ok(())
+}

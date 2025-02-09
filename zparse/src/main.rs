@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::path::Path;
 use tracing::{error, info};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 use zparse::{
     converter::Converter,
     error::{ParseError, ParseErrorKind, Result, SemanticError, SyntaxError},
@@ -26,16 +27,15 @@ struct Args {
 fn main() {
     // Initialize the default subscriber for logging
     tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_span_events(FmtSpan::CLOSE)
         .with_target(false) // Don't show target
-        .with_thread_ids(false) // Don't show thread IDs
-        .with_thread_names(false) // Don't show thread names
-        .with_file(false) // Don't show file names
-        .with_line_number(false) // Don't show line numbers
         .without_time() // Don't show timestamps
         .init(); // Initialize the subscriber
 
     if let Err(e) = run() {
-        // Now this will actually print
         error!("{}", e);
         std::process::exit(1);
     }

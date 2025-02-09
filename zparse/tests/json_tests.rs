@@ -209,6 +209,31 @@ mod json_tests {
 
     // Error Cases
     #[test]
+    fn test_invalid_unicode_sequence() {
+        let input = r#"{"key": "\u123Z"}"#;
+        let result = parse_json(input);
+        assert!(result.is_err());
+        match result.unwrap_err().kind() {
+            ParseErrorKind::Lexical(LexicalError::InvalidUnicode) => {}
+            other => panic!("Expected InvalidUnicode error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_circular_reference_detection() {
+        let input = r#"{
+            "a": {"b": {"c": {"d": "circular"}}}
+        }"#;
+        let result = parse_json(input);
+        if result.is_err() {
+            match result.unwrap_err().kind() {
+                ParseErrorKind::Security(SecurityError::MaxDepthExceeded) => {}
+                other => panic!("Expected MaxDepthExceeded error, got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
     fn test_invalid_json() {
         let invalid_inputs = vec![
             ("{", "Incomplete object"),
@@ -318,6 +343,27 @@ mod json_tests {
                 "Expected LexicalError::InvalidToken due to unquoted value, got {:?}",
                 other
             ),
+        }
+    }
+
+    #[test]
+    fn test_error_location_info() {
+        let input = "{\n  \"key\": \n  invalid\n}";
+        let result = parse_json(input);
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        println!("Error: {:?}", err);
+
+        if let Some(location) = err.location() {
+            println!(
+                "Location - line: {}, column: {}",
+                location.line, location.column
+            );
+            assert_eq!(location.line, 3, "Expected error on line 3");
+            assert_eq!(location.column, 3, "Expected error at column 3");
+        } else {
+            panic!("Expected error location information");
         }
     }
 }

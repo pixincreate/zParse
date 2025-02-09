@@ -1,5 +1,6 @@
 use crate::parser::Value;
 
+// Helper function to compare values structurally rather than string representation
 pub fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
         (Value::Map(l_map), Value::Map(r_map)) => {

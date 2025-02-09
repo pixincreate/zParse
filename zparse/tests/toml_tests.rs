@@ -44,6 +44,72 @@ mod toml_tests {
 
     // Table Tests
     #[test]
+    fn test_circular_reference_in_tables() {
+        // Simple circular reference
+        let input1 = r#"
+            [a]
+            key = "value"
+
+            [a.b]
+            key = "value"
+
+            [a.b.a]
+            key = "value"
+        "#;
+
+        let result1 = parse_toml(input1);
+        assert!(
+            result1.is_err(),
+            "Expected error for simple circular reference"
+        );
+        match result1.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::CircularReference) => {}
+            other => panic!("Expected CircularReference error, got {:?}", other),
+        }
+
+        // More complex circular reference
+        let input2 = r#"
+            [x]
+            key = "value"
+
+            [x.y]
+            key = "value"
+
+            [x.y.z]
+            key = "value"
+
+            [x.y.z.x]
+            key = "value"
+        "#;
+
+        let result2 = parse_toml(input2);
+        assert!(
+            result2.is_err(),
+            "Expected error for complex circular reference"
+        );
+        match result2.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::CircularReference) => {}
+            other => panic!("Expected CircularReference error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_invalid_table_array_access() {
+        let input = r#"
+            [[array]]
+            key = "value"
+            [array]
+            other = "value"
+        "#;
+        let result = parse_toml(input);
+        assert!(result.is_err());
+        match result.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::NestedTableError) => {}
+            other => panic!("Expected NestedTableError error, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn test_parse_nested_tables() -> Result<()> {
         let input = r#"
             [server]

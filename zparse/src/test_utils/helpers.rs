@@ -1,7 +1,8 @@
-use crate::error::{IOError, ParseError, ParseErrorKind, Result};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+
+use crate::error::{IOError, ParseError, ParseErrorKind, Result};
 
 pub fn tmp_file_path(name: &str) -> PathBuf {
     let mut dir = env::temp_dir();

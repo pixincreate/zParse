@@ -1,5 +1,7 @@
-use crate::error::{Location, ParseErrorKind, Result, SecurityError};
-use crate::parser::config::{ParserConfig, ParsingContext};
+use crate::{
+    error::{Location, ParseErrorKind, Result, SecurityError},
+    parser::config::{ParserConfig, ParsingContext},
+};
 
 #[derive(Debug)]
 pub struct ParserState {

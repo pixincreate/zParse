@@ -1,6 +1,9 @@
-use crate::error::{Location, ParseErrorKind, Result, SemanticError};
-use crate::parser::Value;
 use std::collections::HashMap;
+
+use crate::{
+    error::{Location, ParseErrorKind, Result, SemanticError},
+    parser::Value,
+};
 
 pub struct ConversionContext {
     line: usize,

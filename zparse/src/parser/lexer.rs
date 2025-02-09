@@ -9,9 +9,11 @@ pub mod string_parser;
 use number_parser::read_number;
 use string_parser::read_string;
 
-use crate::enums::Token;
-use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError};
-use crate::parser::config::ParserConfig;
+use crate::{
+    enums::Token,
+    error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError},
+    parser::config::ParserConfig,
+};
 
 /// The core Lexer struct that other modules will use
 #[derive(Debug)]

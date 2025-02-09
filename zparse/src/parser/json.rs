@@ -7,14 +7,17 @@
 //! - Provides detailed error messages
 //! - Handles nested structures with proper depth checking
 
-use super::config::ParserConfig;
-use crate::common::parser_state::ParserState;
-use crate::enums::Token;
-use crate::error::{
-    LexicalError, Location, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError,
-};
-use crate::parser::{lexer::Lexer, value::Value};
 use std::collections::HashMap;
+
+use super::config::ParserConfig;
+use crate::{
+    common::parser_state::ParserState,
+    enums::Token,
+    error::{
+        LexicalError, Location, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError,
+    },
+    parser::{lexer::Lexer, value::Value},
+};
 
 #[derive(Debug)]
 pub struct JsonParser {

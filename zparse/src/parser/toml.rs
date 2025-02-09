@@ -1,15 +1,18 @@
+use std::collections::HashMap;
+
 use super::{
     config::{ParserConfig, ParsingContext},
     lexer::Lexer,
     value::Value,
 };
-use crate::common::parser_state::ParserState;
-use crate::enums::Token;
-use crate::error::{
-    LexicalError, Location, ParseError, ParseErrorKind, Result, SecurityError, SemanticError,
-    SyntaxError,
+use crate::{
+    common::parser_state::ParserState,
+    enums::Token,
+    error::{
+        LexicalError, Location, ParseError, ParseErrorKind, Result, SecurityError, SemanticError,
+        SyntaxError,
+    },
 };
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct TomlParser {

@@ -1,5 +1,6 @@
-use crate::error::{IOError, ParseError, ParseErrorKind, Result};
 use std::fs;
+
+use crate::error::{IOError, ParseError, ParseErrorKind, Result};
 
 pub struct TestData {
     pub small_json: String,

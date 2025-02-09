@@ -4,6 +4,7 @@
 
 use proptest::collection::vec;
 use proptest::prelude::*;
+
 use zparse::test_utils::*;
 
 // Strategy for generating valid JSON strings

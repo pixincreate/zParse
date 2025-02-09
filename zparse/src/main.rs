@@ -2,6 +2,7 @@ use clap::Parser;
 use std::path::Path;
 use tracing::{error, info};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+
 use zparse::{
     converter::Converter,
     error::{ParseError, ParseErrorKind, Result, SemanticError, SyntaxError},

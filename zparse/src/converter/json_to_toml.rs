@@ -5,10 +5,13 @@
 //! - Type mapping between formats
 //! - Validation of TOML restrictions
 
-use crate::common::converter::{CommonConverter, ConversionContext};
-use crate::error::{ConversionError, ParseErrorKind, Result};
-use crate::parser::Value;
 use std::collections::HashMap;
+
+use crate::{
+    common::converter::{CommonConverter, ConversionContext},
+    error::{ConversionError, ParseErrorKind, Result},
+    parser::Value,
+};
 
 pub struct JsonToTomlConverter;
 

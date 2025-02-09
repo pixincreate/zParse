@@ -18,6 +18,9 @@ pub use crate::{
     },
     formatter::{FormatConfig, Formatter, JsonFormatter},
     parse_file,
-    parser::{config::ParserConfig, JsonParser, TomlParser, Value},
+    parser::{
+        config::{ParserConfig, DEFAULT_MAX_DEPTH, DEFAULT_MAX_OBJECT_ENTRIES, DEFAULT_MAX_SIZE},
+        JsonParser, TomlParser, Value,
+    },
     utils::{format_json, format_toml, parse_json, parse_toml, read_file, write_file},
 };

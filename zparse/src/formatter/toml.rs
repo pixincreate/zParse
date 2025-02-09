@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use super::{CommonFormatter, FormatConfig, Formatter};
 use crate::{error::Result, parser::Value};
-use std::collections::HashMap;
 
 pub struct TomlFormatter;
 

@@ -5,6 +5,8 @@
 
 use std::{error::Error, fmt};
 
+use crate::parser::lexer::Lexer;
+
 /// Main error type for parsing operations
 #[derive(Debug)]
 pub struct ParseError {
@@ -269,3 +271,25 @@ impl Error for ParseError {
 }
 
 pub type Result<T> = std::result::Result<T, ParseError>;
+
+impl Location {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+
+    pub fn from_lexer(lexer: &Lexer) -> Self {
+        let (line, column) = lexer.get_location();
+        Self { line, column }
+    }
+
+    pub fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
+        let mut error = ParseError::new(kind);
+        error = error.with_location(self.line, self.column);
+
+        if !context.is_empty() {
+            error = error.with_context(context);
+        }
+
+        error
+    }
+}

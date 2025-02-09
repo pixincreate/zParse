@@ -10,7 +10,9 @@
 use super::config::ParserConfig;
 use crate::common::parser_state::ParserState;
 use crate::enums::Token;
-use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError};
+use crate::error::{
+    LexicalError, Location, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError,
+};
 use crate::parser::{lexer::Lexer, value::Value};
 use std::collections::HashMap;
 
@@ -50,21 +52,7 @@ impl JsonParser {
     }
 
     fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
-        // Get current location
-        let (line, column) = self.lexer.get_location();
-
-        // Create base error
-        let mut error = ParseError::new(kind);
-
-        // Add location
-        error = error.with_location(line, column);
-
-        // Only add context if it provides additional info
-        if !context.is_empty() {
-            error = error.with_context(context);
-        }
-
-        error
+        Location::from_lexer(&self.lexer).create_error(kind, context)
     }
 
     /// Setter method to configure the parser

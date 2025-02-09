@@ -49,6 +49,24 @@ impl JsonParser {
         })
     }
 
+    fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
+        // Get current location
+        let (line, column) = self.lexer.get_location();
+
+        // Create base error
+        let mut error = ParseError::new(kind);
+
+        // Add location
+        error = error.with_location(line, column);
+
+        // Only add context if it provides additional info
+        if !context.is_empty() {
+            error = error.with_context(context);
+        }
+
+        error
+    }
+
     /// Setter method to configure the parser
     pub fn with_config(mut self, config: ParserConfig) -> Self {
         self.state = ParserState::with_config(config);
@@ -69,9 +87,13 @@ impl JsonParser {
 
         // Check for trailing content
         if self.current_token != Token::EOF {
-            return Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-            )));
+            return Err(self.create_error(
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                    "{:?}",
+                    self.current_token
+                ))),
+                "Unexpected trailing content after JSON document",
+            ));
         }
 
         Ok(value)
@@ -102,9 +124,13 @@ impl JsonParser {
                 self.advance()?;
                 Ok(value)
             }
-            _ => Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-            ))),
+            _ => Err(self.create_error(
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                    "{:?}",
+                    self.current_token
+                ))),
+                "Expected a valid JSON value (object, array, string, number, boolean, or null)",
+            )),
         }
     }
 
@@ -137,18 +163,22 @@ impl JsonParser {
                     s.clone()
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken("Expected string key".to_string()),
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(
+                            "Expected string key".to_string(),
+                        )),
+                        "Object keys must be strings",
+                    ))
                 }
             };
             self.advance()?;
 
             // Expect colon
             if self.current_token != Token::Colon {
-                return Err(ParseError::new(ParseErrorKind::Syntax(
-                    SyntaxError::MissingColon,
-                )));
+                return Err(self.create_error(
+                    ParseErrorKind::Syntax(SyntaxError::MissingColon),
+                    "Expected ':' after object key",
+                ));
             }
             self.advance()?;
 
@@ -157,9 +187,10 @@ impl JsonParser {
 
             // Check for duplicate keys
             if map.contains_key(&key) {
-                return Err(ParseError::new(ParseErrorKind::Syntax(
-                    SyntaxError::DuplicateKey(key),
-                )));
+                return Err(self.create_error(
+                    ParseErrorKind::Syntax(SyntaxError::DuplicateKey(key)),
+                    "Duplicate key found in object",
+                ));
             }
 
             map.insert(key, value);
@@ -169,12 +200,13 @@ impl JsonParser {
                 Token::Comma => {
                     self.advance()?;
                     if matches!(self.current_token, Token::RightBrace) {
-                        return Err(ParseError::new(ParseErrorKind::Lexical(
-                            LexicalError::UnexpectedToken(format!(
+                        return Err(self.create_error(
+                            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                                 "Trailing {:?} in object",
                                 self.current_token
-                            )),
-                        )));
+                            ))),
+                            "Trailing comma not allowed in object",
+                        ));
                     }
                 }
                 Token::RightBrace => {
@@ -183,9 +215,10 @@ impl JsonParser {
                     return Ok(Value::Map(map));
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Syntax(
-                        SyntaxError::MissingComma,
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Syntax(SyntaxError::MissingComma),
+                        "Expected ',' between object properties",
+                    ))
                 }
             }
         }
@@ -219,12 +252,13 @@ impl JsonParser {
                 Token::Comma => {
                     self.advance()?;
                     if matches!(self.current_token, Token::RightBracket) {
-                        return Err(ParseError::new(ParseErrorKind::Lexical(
-                            LexicalError::UnexpectedToken(format!(
+                        return Err(self.create_error(
+                            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                                 "Trailing {:?} in array",
                                 self.current_token
-                            )),
-                        )));
+                            ))),
+                            "Trailing comma not allowed in array",
+                        ));
                     }
                 }
                 Token::RightBracket => {
@@ -233,12 +267,13 @@ impl JsonParser {
                     return Ok(Value::Array(array));
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                             "{:?}. Expected , or ]",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Expected ',' between array elements or ']' to close array",
+                    ))
                 }
             }
         }

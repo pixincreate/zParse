@@ -14,6 +14,8 @@ pub struct ParseError {
     location: Option<Location>,
     /// Source error that caused this error
     source: Option<Box<dyn Error>>,
+    /// Additional context for the error
+    context: Option<String>,
 }
 
 /// Represents a location in the input text
@@ -126,15 +128,25 @@ impl ParseError {
             kind,
             location: None,
             source: None,
+            context: None,
         }
+    }
+
+    pub fn with_location(mut self, line: usize, column: usize) -> Self {
+        self.location = Some(Location { line, column });
+        self
+    }
+
+    pub fn location(&self) -> Option<&Location> {
+        self.location.as_ref()
     }
 
     pub fn kind(&self) -> &ParseErrorKind {
         &self.kind
     }
 
-    pub fn with_location(mut self, line: usize, column: usize) -> Self {
-        self.location = Some(Location { line, column });
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context = Some(context.into());
         self
     }
 
@@ -149,20 +161,32 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let context = match &self.kind {
-            ParseErrorKind::IO(err) => format!("IO error occurred: {}", err),
-            ParseErrorKind::Lexical(err) => format!("Lexical analysis failed: {}", err),
-            ParseErrorKind::Security(err) => format!("Security check failed: {}", err),
-            ParseErrorKind::Semantic(err) => format!("Semantic validation failed: {}", err),
-            ParseErrorKind::Syntax(err) => format!("Syntax error encountered: {}", err),
+        // Start with base error description
+        let base_error = match &self.kind {
+            ParseErrorKind::IO(err) => err.to_string(),
+            ParseErrorKind::Lexical(err) => err.to_string(),
+            ParseErrorKind::Security(err) => err.to_string(),
+            ParseErrorKind::Semantic(err) => err.to_string(),
+            ParseErrorKind::Syntax(err) => err.to_string(),
         };
 
-        write!(f, "{}", context)?;
-
+        // Format with location if available
         if let Some(loc) = &self.location {
-            write!(f, " at line {}, column {}", loc.line, loc.column)?;
+            write!(
+                f,
+                "at line {}, column {}: {}",
+                loc.line, loc.column, base_error
+            )?;
+        } else {
+            write!(f, "Error: {}", base_error)?;
         }
 
+        // Add context if available
+        if let Some(ctx) = &self.context {
+            write!(f, "\nContext: {}", ctx)?;
+        }
+
+        // Add source if available
         if let Some(source) = &self.source {
             write!(f, "\nCaused by: {}", source)?;
         }
@@ -174,16 +198,16 @@ impl fmt::Display for ParseError {
 impl fmt::Display for LexicalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidEscape(c) => write!(f, "Invalid escape sequence: {}", c),
-            Self::InvalidNumber(n) => write!(f, "Invalid number format: {}", n),
-            Self::InvalidString(s) => write!(f, "Invalid string: {}", s),
-            Self::InvalidToken(t) => write!(f, "Invalid token: {}", t),
+            Self::InvalidEscape(c) => write!(f, "Invalid escape sequence '\\{}'", c),
+            Self::InvalidNumber(n) => write!(f, "Invalid number format: '{}'", n),
+            Self::InvalidString(s) => write!(f, "Invalid string format: '{}'", s),
+            Self::InvalidToken(t) => write!(f, "Unexpected token: {}", t),
             Self::InvalidUnicode => write!(f, "Invalid Unicode escape sequence"),
-            Self::NumberOverflow => write!(f, "Number is too large"),
-            Self::NumberUnderflow => write!(f, "Number is too small"),
-            Self::UnexpectedEOF => write!(f, "Unexpected end of input"),
+            Self::NumberOverflow => write!(f, "Number is too large to represent"),
+            Self::NumberUnderflow => write!(f, "Number is too small to represent"),
             Self::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
-            Self::UnterminatedString => write!(f, "Unterminated string"),
+            Self::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            Self::UnterminatedString => write!(f, "Unterminated string literal"),
         }
     }
 }
@@ -191,13 +215,13 @@ impl fmt::Display for LexicalError {
 impl fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DuplicateKey(k) => write!(f, "Duplicate key: {}", k),
-            Self::InvalidKey(k) => write!(f, "Invalid key: {}", k),
+            Self::DuplicateKey(k) => write!(f, "Duplicate key '{}' in object", k),
+            Self::InvalidKey(k) => write!(f, "Invalid key format: '{}'", k),
             Self::InvalidValue(v) => write!(f, "Invalid value: {}", v),
-            Self::MissingColon => write!(f, "Missing colon after key"),
+            Self::MissingColon => write!(f, "Missing colon after object key"),
             Self::MissingComma => write!(f, "Missing comma between elements"),
-            Self::TrailingComma => write!(f, "Trailing comma not allowed"),
-            Self::UnexpectedCharacter(c) => write!(f, "Unexpected character: {}", c),
+            Self::TrailingComma => write!(f, "Trailing comma is not allowed"),
+            Self::UnexpectedCharacter(c) => write!(f, "Unexpected character '{}'", c),
         }
     }
 }

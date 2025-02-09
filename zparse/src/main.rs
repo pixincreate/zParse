@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::path::Path;
+use tracing::{error, info};
 use zparse::{
     converter::Converter,
     error::{ParseError, ParseErrorKind, Result, SemanticError, SyntaxError},
@@ -22,10 +23,29 @@ struct Args {
     output: Option<String>,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    // Initialize the default subscriber for logging
+    tracing_subscriber::fmt()
+        .with_target(false) // Don't show target
+        .with_thread_ids(false) // Don't show thread IDs
+        .with_thread_names(false) // Don't show thread names
+        .with_file(false) // Don't show file names
+        .with_line_number(false) // Don't show line numbers
+        .without_time() // Don't show timestamps
+        .init(); // Initialize the subscriber
+
+    if let Err(e) = run() {
+        // Now this will actually print
+        error!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let args = Args::parse();
 
     // Read input file
+    info!("Reading file: {}", args.file);
     let content = read_file(&args.file)?;
 
     // Determine input format from file extension

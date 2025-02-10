@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod toml_tests {
     use std::collections::HashMap;
-    
+
     use zparse::test_utils::*;
 
     // Basic Parsing Tests

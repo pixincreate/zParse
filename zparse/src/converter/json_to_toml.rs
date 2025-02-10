@@ -7,10 +7,10 @@
 
 use std::collections::HashMap;
 
+use super::{CommonConverter, ConversionContext};
 use crate::{
-    common::converter::{CommonConverter, ConversionContext},
     error::{ConversionError, ParseErrorKind, Result},
-    parser::Value,
+    parser::value::Value,
 };
 
 pub struct JsonToTomlConverter;

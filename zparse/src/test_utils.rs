@@ -9,9 +9,9 @@ pub use helpers::tmp_file_path;
 // Re-export common test types/traits
 pub use crate::{
     converter::Converter,
-    error::{ConversionError, 
-        FormatError, LexicalError, ParseError, ParseErrorKind, Result, SecurityError,
-        SemanticError, SyntaxError,
+    error::{
+        ConversionError, FormatError, LexicalError, ParseError, ParseErrorKind, Result,
+        SecurityError, SemanticError, SyntaxError,
     },
     formatter::{FormatConfig, Formatter, JsonFormatter},
     parse_file,

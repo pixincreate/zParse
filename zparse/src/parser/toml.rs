@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{
     config::{ParserConfig, ParsingContext},
     lexer::Lexer,
-    value::Value,
     state::ParserState,
+    value::Value,
 };
 use crate::{
     enums::Token,

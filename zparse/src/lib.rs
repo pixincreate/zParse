@@ -8,7 +8,7 @@
 //!
 //! # Examples
 //! ```
-//! use zparse::{parse_file, Result};
+//! use zparse::{parse_file, error::Result};
 //!
 //! fn example() -> Result<()> {
 //!     let value = parse_file("config.json")?;

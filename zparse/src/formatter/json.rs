@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{helpers, CommonFormatter, FormatConfig, Formatter};
-use crate::{error::Result, parser::Value};
+use crate::{error::Result, parser::value::Value};
 
 pub struct JsonFormatter;
 

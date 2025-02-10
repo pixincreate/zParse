@@ -2,8 +2,7 @@
 #![allow(clippy::as_conversions)]
 #![allow(clippy::panic)]
 
-use proptest::collection::vec;
-use proptest::prelude::*;
+use proptest::{collection::vec, prelude::*};
 
 use zparse::test_utils::*;
 

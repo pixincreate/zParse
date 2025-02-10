@@ -4,9 +4,9 @@ use super::{
     config::{ParserConfig, ParsingContext},
     lexer::Lexer,
     value::Value,
+    state::ParserState,
 };
 use crate::{
-    common::parser_state::ParserState,
     enums::Token,
     error::{
         LexicalError, Location, ParseError, ParseErrorKind, Result, SecurityError, SemanticError,

@@ -4,7 +4,7 @@ mod toml;
 pub use self::{json::JsonFormatter, toml::TomlFormatter};
 use crate::{
     error::{FormatError, Location, ParseErrorKind, Result},
-    parser::Value,
+    parser::value::Value,
 };
 
 /// Configuration options for formatting

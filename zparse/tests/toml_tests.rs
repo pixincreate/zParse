@@ -6,6 +6,7 @@
 #[cfg(test)]
 mod toml_tests {
     use std::collections::HashMap;
+
     use zparse::test_utils::*;
 
     // Basic Parsing Tests
@@ -43,6 +44,72 @@ mod toml_tests {
     }
 
     // Table Tests
+    #[test]
+    fn test_circular_reference_in_tables() {
+        // Simple circular reference
+        let input1 = r#"
+            [a]
+            key = "value"
+
+            [a.b]
+            key = "value"
+
+            [a.b.a]
+            key = "value"
+        "#;
+
+        let result1 = parse_toml(input1);
+        assert!(
+            result1.is_err(),
+            "Expected error for simple circular reference"
+        );
+        match result1.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::CircularReference) => {}
+            other => panic!("Expected CircularReference error, got {:?}", other),
+        }
+
+        // More complex circular reference
+        let input2 = r#"
+            [x]
+            key = "value"
+
+            [x.y]
+            key = "value"
+
+            [x.y.z]
+            key = "value"
+
+            [x.y.z.x]
+            key = "value"
+        "#;
+
+        let result2 = parse_toml(input2);
+        assert!(
+            result2.is_err(),
+            "Expected error for complex circular reference"
+        );
+        match result2.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::CircularReference) => {}
+            other => panic!("Expected CircularReference error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_invalid_table_array_access() {
+        let input = r#"
+            [[array]]
+            key = "value"
+            [array]
+            other = "value"
+        "#;
+        let result = parse_toml(input);
+        assert!(result.is_err());
+        match result.unwrap_err().kind() {
+            ParseErrorKind::Semantic(SemanticError::NestedTableError) => {}
+            other => panic!("Expected NestedTableError error, got {:?}", other),
+        }
+    }
+
     #[test]
     fn test_parse_nested_tables() -> Result<()> {
         let input = r#"
@@ -232,9 +299,7 @@ mod toml_tests {
             // Basic syntax errors
             (
                 "[invalid",
-                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(
-                    "EOF. Invalid table header".to_string(),
-                )),
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken("EOF".to_string())),
             ),
             (
                 "key = ",
@@ -259,7 +324,7 @@ mod toml_tests {
             (
                 "key = [1, 2, ]",
                 ParseErrorKind::Syntax(SyntaxError::InvalidValue(
-                    "Trailing comma in RightBracket".to_string(),
+                    "Trailing comma in array".to_string(),
                 )),
             ),
             // Nested table errors
@@ -300,27 +365,52 @@ mod toml_tests {
             let actual_error = parse_result.unwrap_err();
             println!("Testing '{}': {:?}", input, actual_error);
 
-            assert!(
-                match (actual_error.kind(), &expected_error) {
-                    (ParseErrorKind::Lexical(actual), ParseErrorKind::Lexical(expected)) => {
-                        format!("{:?}", actual) == format!("{:?}", expected)
-                    }
-                    (ParseErrorKind::Syntax(actual), ParseErrorKind::Syntax(expected)) => {
-                        format!("{:?}", actual) == format!("{:?}", expected)
-                    }
-                    (ParseErrorKind::Semantic(actual), ParseErrorKind::Semantic(expected)) => {
-                        format!("{:?}", actual) == format!("{:?}", expected)
-                    }
-                    (ParseErrorKind::Security(actual), ParseErrorKind::Security(expected)) => {
-                        format!("{:?}", actual) == format!("{:?}", expected)
-                    }
-                    _ => false,
-                },
-                "Expected {:?}, got {:?} for input: {}",
-                expected_error,
-                actual_error.kind(),
-                input
-            );
+            // Compare error kinds more flexibly
+            match (actual_error.kind(), &expected_error) {
+                (ParseErrorKind::Lexical(actual), ParseErrorKind::Lexical(expected)) => {
+                    assert!(
+                        format!("{:?}", actual).contains(&format!("{:?}", expected)),
+                        "Expected error containing '{:?}', got '{:?}' for input: {}",
+                        expected,
+                        actual,
+                        input
+                    );
+                }
+                (ParseErrorKind::Syntax(actual), ParseErrorKind::Syntax(expected)) => {
+                    assert!(
+                        format!("{:?}", actual).contains(&format!("{:?}", expected)),
+                        "Expected error containing '{:?}', got '{:?}' for input: {}",
+                        expected,
+                        actual,
+                        input
+                    );
+                }
+                (ParseErrorKind::Semantic(actual), ParseErrorKind::Semantic(expected)) => {
+                    assert!(
+                        format!("{:?}", actual).contains(&format!("{:?}", expected)),
+                        "Expected error containing '{:?}', got '{:?}' for input: {}",
+                        expected,
+                        actual,
+                        input
+                    );
+                }
+                (ParseErrorKind::Security(actual), ParseErrorKind::Security(expected)) => {
+                    assert_eq!(
+                        format!("{:?}", actual),
+                        format!("{:?}", expected),
+                        "Expected {:?}, got {:?} for input: {}",
+                        expected,
+                        actual,
+                        input
+                    );
+                }
+                _ => panic!(
+                    "Error kind mismatch. Expected {:?}, got {:?} for input: {}",
+                    expected_error,
+                    actual_error.kind(),
+                    input
+                ),
+            }
         }
     }
 

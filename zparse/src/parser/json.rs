@@ -7,12 +7,17 @@
 //! - Provides detailed error messages
 //! - Handles nested structures with proper depth checking
 
-use super::config::ParserConfig;
-use crate::common::parser_state::ParserState;
-use crate::enums::Token;
-use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError};
-use crate::parser::{lexer::Lexer, value::Value};
 use std::collections::HashMap;
+
+use super::config::ParserConfig;
+use crate::{
+    common::parser_state::ParserState,
+    enums::Token,
+    error::{
+        LexicalError, Location, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError,
+    },
+    parser::{lexer::Lexer, value::Value},
+};
 
 #[derive(Debug)]
 pub struct JsonParser {
@@ -49,6 +54,10 @@ impl JsonParser {
         })
     }
 
+    fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
+        Location::from_lexer(&self.lexer).create_error(kind, context)
+    }
+
     /// Setter method to configure the parser
     pub fn with_config(mut self, config: ParserConfig) -> Self {
         self.state = ParserState::with_config(config);
@@ -69,9 +78,13 @@ impl JsonParser {
 
         // Check for trailing content
         if self.current_token != Token::EOF {
-            return Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-            )));
+            return Err(self.create_error(
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                    "{:?}",
+                    self.current_token
+                ))),
+                "Unexpected trailing content after JSON document",
+            ));
         }
 
         Ok(value)
@@ -102,9 +115,13 @@ impl JsonParser {
                 self.advance()?;
                 Ok(value)
             }
-            _ => Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-            ))),
+            _ => Err(self.create_error(
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                    "{:?}",
+                    self.current_token
+                ))),
+                "Expected a valid JSON value (object, array, string, number, boolean, or null)",
+            )),
         }
     }
 
@@ -137,18 +154,22 @@ impl JsonParser {
                     s.clone()
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken("Expected string key".to_string()),
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(
+                            "Expected string key".to_string(),
+                        )),
+                        "Object keys must be strings",
+                    ))
                 }
             };
             self.advance()?;
 
             // Expect colon
             if self.current_token != Token::Colon {
-                return Err(ParseError::new(ParseErrorKind::Syntax(
-                    SyntaxError::MissingColon,
-                )));
+                return Err(self.create_error(
+                    ParseErrorKind::Syntax(SyntaxError::MissingColon),
+                    "Expected ':' after object key",
+                ));
             }
             self.advance()?;
 
@@ -157,9 +178,10 @@ impl JsonParser {
 
             // Check for duplicate keys
             if map.contains_key(&key) {
-                return Err(ParseError::new(ParseErrorKind::Syntax(
-                    SyntaxError::DuplicateKey(key),
-                )));
+                return Err(self.create_error(
+                    ParseErrorKind::Syntax(SyntaxError::DuplicateKey(key)),
+                    "Duplicate key found in object",
+                ));
             }
 
             map.insert(key, value);
@@ -169,12 +191,13 @@ impl JsonParser {
                 Token::Comma => {
                     self.advance()?;
                     if matches!(self.current_token, Token::RightBrace) {
-                        return Err(ParseError::new(ParseErrorKind::Lexical(
-                            LexicalError::UnexpectedToken(format!(
+                        return Err(self.create_error(
+                            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                                 "Trailing {:?} in object",
                                 self.current_token
-                            )),
-                        )));
+                            ))),
+                            "Trailing comma not allowed in object",
+                        ));
                     }
                 }
                 Token::RightBrace => {
@@ -183,9 +206,10 @@ impl JsonParser {
                     return Ok(Value::Map(map));
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Syntax(
-                        SyntaxError::MissingComma,
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Syntax(SyntaxError::MissingComma),
+                        "Expected ',' between object properties",
+                    ))
                 }
             }
         }
@@ -219,12 +243,13 @@ impl JsonParser {
                 Token::Comma => {
                     self.advance()?;
                     if matches!(self.current_token, Token::RightBracket) {
-                        return Err(ParseError::new(ParseErrorKind::Lexical(
-                            LexicalError::UnexpectedToken(format!(
+                        return Err(self.create_error(
+                            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                                 "Trailing {:?} in array",
                                 self.current_token
-                            )),
-                        )));
+                            ))),
+                            "Trailing comma not allowed in array",
+                        ));
                     }
                 }
                 Token::RightBracket => {
@@ -233,12 +258,13 @@ impl JsonParser {
                     return Ok(Value::Array(array));
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                             "{:?}. Expected , or ]",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Expected ',' between array elements or ']' to close array",
+                    ))
                 }
             }
         }

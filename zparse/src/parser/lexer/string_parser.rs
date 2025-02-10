@@ -53,10 +53,10 @@ pub(crate) fn read_string(lexer: &mut Lexer) -> Result<String> {
         }
     }
 
-    // If we exit the while loop, we ran out of characters before finding a closing quote
-    Err(ParseError::new(ParseErrorKind::Lexical(
-        LexicalError::UnexpectedEOF,
-    )))
+    let err = ParseError::new(ParseErrorKind::Lexical(LexicalError::UnterminatedString))
+        .with_location(lexer.line, lexer.column);
+
+    Err(err)
 }
 
 fn parse_unicode_escape(lexer: &mut Lexer) -> Result<String> {

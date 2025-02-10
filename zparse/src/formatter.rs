@@ -2,7 +2,10 @@ mod json;
 mod toml;
 
 pub use self::{json::JsonFormatter, toml::TomlFormatter};
-use crate::parser::Value;
+use crate::{
+    error::{FormatError, Location, ParseErrorKind, Result},
+    parser::Value,
+};
 
 /// Configuration options for formatting
 #[derive(Debug, Clone)]
@@ -25,7 +28,7 @@ impl Default for FormatConfig {
 
 /// Trait for formatting a Value as a string
 pub trait Formatter {
-    fn format(&self, value: &Value, config: &FormatConfig) -> String;
+    fn format(&self, value: &Value, config: &FormatConfig) -> Result<String>;
 }
 
 /// Common formatting functionality shared between JSON and TOML formatters
@@ -43,11 +46,25 @@ pub trait CommonFormatter {
         }
     }
 
-    /// Creates indentation strings
-    fn create_indentation(indent: usize, config: &FormatConfig) -> (String, String) {
-        let indent_str = " ".repeat(indent * config.indent_spaces);
-        let inner_indent = " ".repeat((indent + 1) * config.indent_spaces);
-        (indent_str, inner_indent)
+    /// Creates indentation strings with validation
+    fn create_indentation(indent: usize, config: &FormatConfig) -> Result<(String, String)> {
+        Self::validate_config(config)?;
+
+        let total_indent = indent * config.indent_spaces;
+        let total_inner_indent = (indent + 1) * config.indent_spaces;
+
+        // Prevent excessive indentation
+        if total_indent > 100 || total_inner_indent > 100 {
+            let location = Location::new(0, 0);
+            return Err(location.create_error(
+                ParseErrorKind::Format(FormatError::InvalidIndentation(
+                    "Total indentation exceeds maximum allowed (100 spaces)".to_string(),
+                )),
+                "Excessive nesting level",
+            ));
+        }
+
+        Ok((" ".repeat(total_indent), " ".repeat(total_inner_indent)))
     }
 
     /// Sorts entries if configured
@@ -65,6 +82,21 @@ pub trait CommonFormatter {
     /// Checks if an array contains tables
     fn is_table_array(arr: &[Value]) -> bool {
         arr.iter().any(|v| matches!(v, Value::Map(_)))
+    }
+
+    fn validate_config(config: &FormatConfig) -> Result<()> {
+        // Check for reasonable indentation limits
+        if config.indent_spaces > 8 {
+            let location = Location::new(0, 0);
+            return Err(location.create_error(
+                ParseErrorKind::Format(FormatError::InvalidIndentation(format!(
+                    "Indentation of {} spaces exceeds maximum allowed (8)",
+                    config.indent_spaces
+                ))),
+                "Invalid formatting configuration",
+            ));
+        }
+        Ok(())
     }
 }
 

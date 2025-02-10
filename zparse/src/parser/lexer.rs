@@ -9,9 +9,11 @@ pub mod string_parser;
 use number_parser::read_number;
 use string_parser::read_string;
 
-use crate::enums::Token;
-use crate::error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError};
-use crate::parser::config::ParserConfig;
+use crate::{
+    enums::Token,
+    error::{LexicalError, ParseError, ParseErrorKind, Result, SyntaxError},
+    parser::config::ParserConfig,
+};
 
 /// The core Lexer struct that other modules will use
 #[derive(Debug)]
@@ -26,6 +28,9 @@ pub struct Lexer {
     pub(crate) is_json_mode: bool,
     /// Configuration for the parser
     pub(crate) config: ParserConfig,
+    /// Location tracking for error messages
+    pub(crate) line: usize,
+    pub(crate) column: usize,
 }
 
 impl Lexer {
@@ -39,6 +44,8 @@ impl Lexer {
             current_char,
             is_json_mode: false,
             config: ParserConfig::default(),
+            line: 1,
+            column: 1,
         }
     }
 
@@ -50,96 +57,126 @@ impl Lexer {
     }
 
     /// Moves to the next character in the input
-    pub(crate) fn advance(&mut self) {
+    pub fn advance(&mut self) {
+        if let Some(c) = self.current_char {
+            if c == '\n' {
+                self.line += 1;
+                self.column = 1;
+            } else {
+                self.column += 1;
+            }
+        }
         self.position += 1;
         self.current_char = self.input.get(self.position).copied();
     }
 
-    /// Skips whitespace characters in the input
-    fn skip_whitespace(&mut self) {
+    fn skip_comment(&mut self) {
         while let Some(c) = self.current_char {
-            if !c.is_whitespace() {
+            if c == '\n' {
+                self.advance();
                 break;
             }
             self.advance();
         }
     }
 
+    /// Skips whitespace characters in the input
+    fn skip_whitespace(&mut self) {
+        while let Some(c) = self.current_char {
+            if c == '#' {
+                self.skip_comment();
+            } else if !c.is_whitespace() {
+                break;
+            }
+            self.advance();
+        }
+    }
+
+    /// Helper method to get current location
+    pub fn get_location(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
+
     /// Produces the next token from the input
     pub fn next_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
 
-        match self.current_char {
+        let token = match self.current_char {
             None => Ok(Token::EOF),
-            Some(c) => match c {
-                '{' => {
-                    self.advance();
-                    Ok(Token::LeftBrace)
-                }
-                '}' => {
-                    self.advance();
-                    Ok(Token::RightBrace)
-                }
-                '[' => {
-                    self.advance();
-                    Ok(Token::LeftBracket)
-                }
-                ']' => {
-                    self.advance();
-                    Ok(Token::RightBracket)
-                }
-                ':' => {
-                    self.advance();
-                    Ok(Token::Colon)
-                }
-                ',' => {
-                    self.advance();
-                    Ok(Token::Comma)
-                }
-                '=' => {
-                    self.advance();
-                    Ok(Token::Equals)
-                }
-                '.' => {
-                    self.advance();
-                    Ok(Token::Dot)
-                }
-                '"' => {
-                    // Route to dedicated string parsing
-                    let s = read_string(self)?;
-                    Ok(Token::String(s))
-                }
-                '0'..='9' | '-' | '_' => {
-                    // Route to dedicated number parsing
-                    let n = read_number(self)?;
-                    Ok(Token::Number(n))
-                }
-                't' => self.read_true_or_identifier(),
-                'f' => self.read_false_or_identifier(),
-                'n' => self.read_null_or_identifier(),
-                _ if Self::is_bare_key_start(c) => {
-                    // In JSON mode, we forbid bare keys
-                    if self.is_json_mode {
-                        Err(ParseError::new(ParseErrorKind::Lexical(
-                            LexicalError::InvalidToken(format!(
-                                "Unexpected char '{}'. JSON requires quoted strings",
-                                c
-                            )),
-                        )))
-                    } else {
-                        // Parse a bare key
-                        let s = self.read_bare_key()?;
+            Some(c) => {
+                let (line, column) = (self.line, self.column);
+                match c {
+                    '{' => {
+                        self.advance();
+                        Ok(Token::LeftBrace)
+                    }
+                    '}' => {
+                        self.advance();
+                        Ok(Token::RightBrace)
+                    }
+                    '[' => {
+                        self.advance();
+                        Ok(Token::LeftBracket)
+                    }
+                    ']' => {
+                        self.advance();
+                        Ok(Token::RightBracket)
+                    }
+                    ':' => {
+                        self.advance();
+                        Ok(Token::Colon)
+                    }
+                    ',' => {
+                        self.advance();
+                        Ok(Token::Comma)
+                    }
+                    '=' => {
+                        self.advance();
+                        Ok(Token::Equals)
+                    }
+                    '.' => {
+                        self.advance();
+                        Ok(Token::Dot)
+                    }
+                    '"' => {
+                        // Route to dedicated string parsing
+                        let s = read_string(self)?;
                         Ok(Token::String(s))
                     }
+                    '0'..='9' | '-' | '_' => {
+                        // Route to dedicated number parsing
+                        let n = read_number(self)?;
+                        Ok(Token::Number(n))
+                    }
+                    't' => self.read_true_or_identifier(),
+                    'f' => self.read_false_or_identifier(),
+                    'n' => self.read_null_or_identifier(),
+                    _ if Self::is_bare_key_start(c) => {
+                        if self.is_json_mode {
+                            Err(ParseError::new(ParseErrorKind::Lexical(
+                                LexicalError::InvalidToken(format!(
+                                    "Unexpected char '{}'. JSON requires quoted strings",
+                                    c
+                                )),
+                            ))
+                            .with_location(line, column))
+                        } else {
+                            // Parse a bare key
+                            let s = self.read_bare_key()?;
+                            Ok(Token::String(s))
+                        }
+                    }
+                    _ => Err(
+                        ParseError::new(ParseErrorKind::Lexical(LexicalError::InvalidToken(
+                            format!("Unexpected character '{}' at position {}", c, self.position),
+                        )))
+                        .with_location(line, column),
+                    ),
                 }
-                _ => Err(ParseError::new(ParseErrorKind::Lexical(
-                    LexicalError::InvalidToken(format!(
-                        "Unexpected character '{}' at position {}",
-                        c, self.position
-                    )),
-                ))),
-            },
-        }
+            }
+        }?;
+
+        Ok(token)
     }
 
     fn is_bare_key_start(c: char) -> bool {

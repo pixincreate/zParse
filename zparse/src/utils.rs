@@ -1,9 +1,10 @@
+use std::fs;
+
 use crate::{
     error::{IOError, ParseError, ParseErrorKind, Result},
     formatter::{FormatConfig, Formatter, JsonFormatter, TomlFormatter},
     parser::{json::JsonParser, toml::TomlParser, value::Value},
 };
-use std::fs;
 
 pub fn read_file(path: &str) -> Result<String> {
     fs::read_to_string(path).map_err(|e| match e.kind() {
@@ -36,10 +37,10 @@ pub fn parse_toml(content: &str) -> Result<Value> {
     parser.parse()
 }
 
-pub fn format_json(value: &Value) -> String {
+pub fn format_json(value: &Value) -> Result<String> {
     JsonFormatter.format(value, &FormatConfig::default())
 }
 
-pub fn format_toml(value: &Value) -> String {
+pub fn format_toml(value: &Value) -> Result<String> {
     TomlFormatter.format(value, &FormatConfig::default())
 }

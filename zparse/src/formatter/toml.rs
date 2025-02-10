@@ -1,16 +1,17 @@
-use super::{CommonFormatter, FormatConfig, Formatter};
-use crate::parser::Value;
 use std::collections::HashMap;
+
+use super::{CommonFormatter, FormatConfig, Formatter};
+use crate::{error::Result, parser::Value};
 
 pub struct TomlFormatter;
 
 impl CommonFormatter for TomlFormatter {}
 
 impl Formatter for TomlFormatter {
-    fn format(&self, value: &Value, config: &FormatConfig) -> String {
+    fn format(&self, value: &Value, config: &FormatConfig) -> Result<String> {
         match value {
-            Value::Map(map) => Self::format_table(map, vec![], config),
-            _ => Value::to_string(value),
+            Value::Map(map) => Ok(Self::format_table(map, vec![], config)),
+            _ => Ok(Value::to_string(value)),
         }
     }
 }

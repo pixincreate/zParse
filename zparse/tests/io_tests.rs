@@ -59,7 +59,7 @@ fn parse_and_format_json_file() {
     // Use parse_file to parse the JSON file.
     let parsed = parse_file(temp_path_str).expect("Failed to parse JSON file");
     // Format back using the JSON formatter.
-    let formatted = format_json(&parsed);
+    let formatted = format_json(&parsed).expect("Failed to format JSON");
     // Check that the formatted output contains at least one expected element.
     assert!(
         formatted.contains("\"key\""),
@@ -90,7 +90,7 @@ fn parse_and_format_toml_file() {
     // Use parse_file to parse the TOML file.
     let parsed = parse_file(temp_path_str).expect("Failed to parse TOML file");
     // Format using the TOML formatter.
-    let formatted = format_toml(&parsed);
+    let formatted = format_toml(&parsed).expect("Failed to format TOML");
     // Check that the formatted output contains expected key names.
     assert!(
         formatted.contains("key"),

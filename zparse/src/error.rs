@@ -5,6 +5,8 @@
 
 use std::{error::Error, fmt};
 
+use crate::parser::lexer::Lexer;
+
 /// Main error type for parsing operations
 #[derive(Debug)]
 pub struct ParseError {
@@ -14,6 +16,8 @@ pub struct ParseError {
     location: Option<Location>,
     /// Source error that caused this error
     source: Option<Box<dyn Error>>,
+    /// Additional context for the error
+    context: Option<String>,
 }
 
 /// Represents a location in the input text
@@ -28,11 +32,31 @@ pub struct Location {
 /// Top-level error categories
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
+    Conversion(ConversionError),
+    Format(FormatError),
     IO(IOError),
     Lexical(LexicalError),
     Security(SecurityError),
     Semantic(SemanticError),
     Syntax(SyntaxError),
+}
+
+/// Conversion errors
+#[derive(Debug, Clone)]
+pub enum ConversionError {
+    /// Unsupported value type
+    UnsupportedValue(String),
+}
+
+/// Format errors
+#[derive(Debug, Clone)]
+pub enum FormatError {
+    /// Invalid indentation in the input
+    InvalidIndentation(String),
+    /// Invalid value in the input
+    InvalidValue(String),
+    /// Error serializing a value
+    SerializationFailed(String),
 }
 
 /// Lexical analysis errors
@@ -126,15 +150,25 @@ impl ParseError {
             kind,
             location: None,
             source: None,
+            context: None,
         }
+    }
+
+    pub fn with_location(mut self, line: usize, column: usize) -> Self {
+        self.location = Some(Location { line, column });
+        self
+    }
+
+    pub fn location(&self) -> Option<&Location> {
+        self.location.as_ref()
     }
 
     pub fn kind(&self) -> &ParseErrorKind {
         &self.kind
     }
 
-    pub fn with_location(mut self, line: usize, column: usize) -> Self {
-        self.location = Some(Location { line, column });
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context = Some(context.into());
         self
     }
 
@@ -149,34 +183,73 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            ParseErrorKind::IO(err) => write!(f, "IO error: {}", err),
-            ParseErrorKind::Lexical(err) => write!(f, "Lexical error: {}", err),
-            ParseErrorKind::Security(err) => write!(f, "Security error: {}", err),
-            ParseErrorKind::Semantic(err) => write!(f, "Semantic error: {}", err),
-            ParseErrorKind::Syntax(err) => write!(f, "Syntax error: {}", err),
-        }?;
+        // Start with base error description
+        let base_error = match &self.kind {
+            ParseErrorKind::Conversion(err) => err.to_string(),
+            ParseErrorKind::Format(err) => err.to_string(),
+            ParseErrorKind::IO(err) => err.to_string(),
+            ParseErrorKind::Lexical(err) => err.to_string(),
+            ParseErrorKind::Security(err) => err.to_string(),
+            ParseErrorKind::Semantic(err) => err.to_string(),
+            ParseErrorKind::Syntax(err) => err.to_string(),
+        };
 
+        // Format with location if available
         if let Some(loc) = &self.location {
-            write!(f, " at line {}, column {}", loc.line, loc.column)?;
+            write!(
+                f,
+                "at line {}, column {}: {}",
+                loc.line, loc.column, base_error
+            )?;
+        } else {
+            write!(f, "Error: {}", base_error)?;
         }
+
+        // Add context if available
+        if let Some(ctx) = &self.context {
+            write!(f, "\nContext: {}", ctx)?;
+        }
+
+        // Add source if available
+        if let Some(source) = &self.source {
+            write!(f, "\nCaused by: {}", source)?;
+        }
+
         Ok(())
+    }
+}
+
+impl fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedValue(v) => write!(f, "Unsupported value: '{}'", v),
+        }
+    }
+}
+
+impl fmt::Display for FormatError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidIndentation(i) => write!(f, "Invalid indentation: '{}'", i),
+            Self::InvalidValue(v) => write!(f, "Invalid value: '{}'", v),
+            Self::SerializationFailed(s) => write!(f, "Serialization failed: '{}'", s),
+        }
     }
 }
 
 impl fmt::Display for LexicalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidEscape(c) => write!(f, "Invalid escape sequence: {}", c),
-            Self::InvalidNumber(n) => write!(f, "Invalid number format: {}", n),
-            Self::InvalidString(s) => write!(f, "Invalid string: {}", s),
-            Self::InvalidToken(t) => write!(f, "Invalid token: {}", t),
+            Self::InvalidEscape(c) => write!(f, "Invalid escape sequence '\\{}'", c),
+            Self::InvalidNumber(n) => write!(f, "Invalid number format: '{}'", n),
+            Self::InvalidString(s) => write!(f, "Invalid string format: '{}'", s),
+            Self::InvalidToken(t) => write!(f, "Unexpected token: {}", t),
             Self::InvalidUnicode => write!(f, "Invalid Unicode escape sequence"),
-            Self::NumberOverflow => write!(f, "Number is too large"),
-            Self::NumberUnderflow => write!(f, "Number is too small"),
-            Self::UnexpectedEOF => write!(f, "Unexpected end of input"),
+            Self::NumberOverflow => write!(f, "Number is too large to represent"),
+            Self::NumberUnderflow => write!(f, "Number is too small to represent"),
             Self::UnexpectedToken(t) => write!(f, "Unexpected token: {}", t),
-            Self::UnterminatedString => write!(f, "Unterminated string"),
+            Self::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            Self::UnterminatedString => write!(f, "Unterminated string literal"),
         }
     }
 }
@@ -184,13 +257,13 @@ impl fmt::Display for LexicalError {
 impl fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DuplicateKey(k) => write!(f, "Duplicate key: {}", k),
-            Self::InvalidKey(k) => write!(f, "Invalid key: {}", k),
+            Self::DuplicateKey(k) => write!(f, "Duplicate key '{}' in object", k),
+            Self::InvalidKey(k) => write!(f, "Invalid key format: '{}'", k),
             Self::InvalidValue(v) => write!(f, "Invalid value: {}", v),
-            Self::MissingColon => write!(f, "Missing colon after key"),
+            Self::MissingColon => write!(f, "Missing colon after object key"),
             Self::MissingComma => write!(f, "Missing comma between elements"),
-            Self::TrailingComma => write!(f, "Trailing comma not allowed"),
-            Self::UnexpectedCharacter(c) => write!(f, "Unexpected character: {}", c),
+            Self::TrailingComma => write!(f, "Trailing comma is not allowed"),
+            Self::UnexpectedCharacter(c) => write!(f, "Unexpected character '{}'", c),
         }
     }
 }
@@ -238,3 +311,25 @@ impl Error for ParseError {
 }
 
 pub type Result<T> = std::result::Result<T, ParseError>;
+
+impl Location {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+
+    pub fn from_lexer(lexer: &Lexer) -> Self {
+        let (line, column) = lexer.get_location();
+        Self { line, column }
+    }
+
+    pub fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
+        let mut error = ParseError::new(kind);
+        error = error.with_location(self.line, self.column);
+
+        if !context.is_empty() {
+            error = error.with_context(context);
+        }
+
+        error
+    }
+}

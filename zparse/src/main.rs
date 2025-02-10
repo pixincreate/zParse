@@ -1,5 +1,8 @@
 use clap::Parser;
 use std::path::Path;
+use tracing::{error, info};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+
 use zparse::{
     converter::Converter,
     error::{ParseError, ParseErrorKind, Result, SemanticError, SyntaxError},
@@ -22,10 +25,28 @@ struct Args {
     output: Option<String>,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    // Initialize the default subscriber for logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_span_events(FmtSpan::CLOSE)
+        .with_target(false) // Don't show target
+        .without_time() // Don't show timestamps
+        .init(); // Initialize the subscriber
+
+    if let Err(e) = run() {
+        error!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let args = Args::parse();
 
     // Read input file
+    info!("Reading file: {}", args.file);
     let content = read_file(&args.file)?;
 
     // Determine input format from file extension
@@ -66,8 +87,8 @@ fn main() -> Result<()> {
 
     // Format the output
     let formatted_output = match output_format {
-        "json" => format_json(&final_value),
-        "toml" => format_toml(&final_value),
+        "json" => format_json(&final_value)?,
+        "toml" => format_toml(&final_value)?,
         _ => {
             return Err(ParseError::new(ParseErrorKind::Semantic(
                 SemanticError::UnknownFormat,

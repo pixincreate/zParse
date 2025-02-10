@@ -1,14 +1,18 @@
+use std::collections::HashMap;
+
 use super::{
     config::{ParserConfig, ParsingContext},
     lexer::Lexer,
     value::Value,
 };
-use crate::common::parser_state::ParserState;
-use crate::enums::Token;
-use crate::error::{
-    LexicalError, ParseError, ParseErrorKind, Result, SecurityError, SemanticError, SyntaxError,
+use crate::{
+    common::parser_state::ParserState,
+    enums::Token,
+    error::{
+        LexicalError, Location, ParseError, ParseErrorKind, Result, SecurityError, SemanticError,
+        SyntaxError,
+    },
 };
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct TomlParser {
@@ -47,6 +51,10 @@ impl TomlParser {
         })
     }
 
+    fn create_error(&self, kind: ParseErrorKind, context: &str) -> ParseError {
+        Location::from_lexer(&self.lexer).create_error(kind, context)
+    }
+
     /// Setter method to configure the parser
     pub fn with_config(mut self, config: ParserConfig) -> Self {
         self.config = config;
@@ -69,9 +77,13 @@ impl TomlParser {
                 }
                 Token::EOF => break,
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-                    )));
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                            "{:?}",
+                            self.current_token
+                        ))),
+                        "Expected table header or key-value pair at root level",
+                    ));
                 }
             }
         }
@@ -94,9 +106,10 @@ impl TomlParser {
 
         // Check max depth before processing
         if self.context.current_depth >= self.config.max_depth {
-            return Err(ParseError::new(ParseErrorKind::Security(
-                SecurityError::MaxDepthExceeded,
-            )));
+            return Err(self.create_error(
+                ParseErrorKind::Security(SecurityError::MaxDepthExceeded),
+                "Maximum depth for nested tables exceeded",
+            ));
         }
 
         loop {
@@ -104,9 +117,10 @@ impl TomlParser {
                 Token::String(s) => {
                     // Check max depth on each new component
                     if path.len() >= self.config.max_depth {
-                        return Err(ParseError::new(ParseErrorKind::Security(
-                            SecurityError::MaxDepthExceeded,
-                        )));
+                        return Err(self.create_error(
+                            ParseErrorKind::Security(SecurityError::MaxDepthExceeded),
+                            "Maximum depth for nested tables exceeded",
+                        ));
                     }
 
                     // Validate string length and track memory
@@ -128,12 +142,13 @@ impl TomlParser {
                     self.advance()?;
                     if is_array_table {
                         if self.current_token != Token::RightBracket {
-                            return Err(ParseError::new(ParseErrorKind::Lexical(
-                                LexicalError::UnexpectedToken(format!(
+                            return Err(self.create_error(
+                                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
                                     "{:?}. Expected ] for array table",
                                     self.current_token,
-                                )),
-                            )));
+                                ))),
+                                "Expected closing ']]' for array table",
+                            ));
                         }
                         self.advance()?; // consume second ']'
                         self.detect_circular_reference(&path)?;
@@ -147,12 +162,13 @@ impl TomlParser {
                     break;
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
-                            "{:?}. Invalid table header",
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                            "{:?}",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Invalid table header: expected string or dot",
+                    ))
                 }
             }
         }
@@ -162,64 +178,72 @@ impl TomlParser {
     }
 
     fn ensure_table_exists(&mut self) -> Result<()> {
+        // Check total depth before processing
+        if self.current_table.len() > self.config.max_depth {
+            return Err(self.create_error(
+                ParseErrorKind::Security(SecurityError::MaxDepthExceeded),
+                "Maximum depth for nested tables exceeded",
+            ));
+        }
+
         let mut current = &mut self.tables;
         let mut path = Vec::new();
 
-        // Check total depth before processing
-        if self.current_table.len() > self.config.max_depth {
-            return Err(ParseError::new(ParseErrorKind::Security(
-                SecurityError::MaxDepthExceeded,
-            )));
-        }
-
         for key in &self.current_table {
-            // Track nesting level
             self.context.enter_nested(&self.config)?;
             path.push(key);
 
-            // First check if the key exists and if it's a non-table type
+            // Clone the values we need for error messages
             if let Some(existing) = current.get(key) {
-                match existing {
+                let error = match existing {
                     Value::Map(_) => {
-                        // If this is the final component and it already exists as a table
                         if path.len() == self.current_table.len() {
-                            return Err(ParseError::new(ParseErrorKind::Syntax(
-                                SyntaxError::InvalidValue(format!(
+                            let path_str = path
+                                .iter()
+                                .map(|s| s.as_str())
+                                .collect::<Vec<_>>()
+                                .join(".");
+                            Some((
+                                ParseErrorKind::Syntax(SyntaxError::InvalidValue(format!(
                                     "Duplicate table definition: [{}]",
-                                    path.iter()
-                                        .map(|s| s.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join(".")
-                                )),
-                            )));
+                                    path_str
+                                ))),
+                                "Table has already been defined",
+                            ))
+                        } else {
+                            None
                         }
                     }
-                    Value::Array(_) => {
-                        return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::NestedTableError,
-                        )))
-                    }
+                    Value::Array(_) => Some((
+                        ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                        "Cannot redefine array table as regular table",
+                    )),
                     Value::Number(n) => {
-                        return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::TypeMismatch(format!(
+                        let msg = if n.fract() == 0.0 {
+                            n.trunc().to_string()
+                        } else {
+                            n.to_string()
+                        };
+                        Some((
+                            ParseErrorKind::Semantic(SemanticError::TypeMismatch(format!(
                                 "Expected table, found Number({})",
-                                // Format number without decimal point if it's a whole number
-                                if n.fract() == 0.0 {
-                                    n.trunc().to_string()
-                                } else {
-                                    n.to_string()
-                                }
-                            )),
-                        )));
+                                msg
+                            ))),
+                            "Cannot use a number where a table is expected",
+                        ))
                     }
-                    other => {
-                        return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::TypeMismatch(format!(
-                                "Expected table, found {:?}",
-                                other
-                            )),
-                        )))
-                    }
+                    other => Some((
+                        ParseErrorKind::Semantic(SemanticError::TypeMismatch(format!(
+                            "Expected table, found {:?}",
+                            other
+                        ))),
+                        "Invalid value type for table",
+                    )),
+                };
+
+                // If we have an error, return it
+                if let Some((kind, context)) = error {
+                    return Err(self.create_error(kind, context));
                 }
             }
 
@@ -232,17 +256,17 @@ impl TomlParser {
                     match entry.get_mut() {
                         Value::Map(_) => {} // OK - continue traversing
                         Value::Array(_) => {
-                            return Err(ParseError::new(ParseErrorKind::Semantic(
-                                SemanticError::NestedTableError,
-                            )))
+                            return Err(self.create_error(
+                                ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                                "Cannot redefine array table as regular table",
+                            ))
                         }
                         other => {
-                            return Err(ParseError::new(ParseErrorKind::Semantic(
-                                SemanticError::TypeMismatch(format!(
-                                    "Expected table, found {:?}",
-                                    other
-                                )),
-                            )))
+                            let error_msg = format!("Expected table, found {:?}", other);
+                            return Err(self.create_error(
+                                ParseErrorKind::Semantic(SemanticError::TypeMismatch(error_msg)),
+                                "Cannot use a number where a table is expected",
+                            ));
                         }
                     }
                 }
@@ -251,9 +275,10 @@ impl TomlParser {
             current = match current.get_mut(key) {
                 Some(Value::Map(table)) => table,
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::NestedTableError,
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                        "Cannot redefine array table as regular table",
+                    ))
                 }
             };
 
@@ -277,20 +302,25 @@ impl TomlParser {
                 s.clone()
             }
             _ => {
-                return Err(ParseError::new(ParseErrorKind::Lexical(
-                    LexicalError::UnexpectedToken(format!(
-                        "{:?}. Expected key.",
+                return Err(self.create_error(
+                    ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                        "{:?}",
                         self.current_token
-                    )),
-                )))
+                    ))),
+                    "Expected a valid TOML key",
+                ))
             }
         };
         self.advance()?;
 
         if self.current_token != Token::Equals {
-            return Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}. Expected =", self.current_token)),
-            )));
+            return Err(self.create_error(
+                ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                    "{:?}",
+                    self.current_token
+                ))),
+                "Expected '=' after key in key-value pair",
+            ));
         }
         self.advance()?;
 
@@ -305,15 +335,17 @@ impl TomlParser {
                     if let Some(Value::Map(table)) = arr.last_mut() {
                         table
                     } else {
-                        return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::NestedTableError,
-                        )));
+                        return Err(self.create_error(
+                            ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                            "Cannot redefine array table as regular table",
+                        ));
                     }
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::NestedTableError,
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                        "Cannot redefine array table as regular table",
+                    ));
                 }
             };
         }
@@ -347,9 +379,14 @@ impl TomlParser {
             }
             Token::LeftBracket => self.parse_array(),
             Token::LeftBrace => self.parse_inline_table(),
-            _ => Err(ParseError::new(ParseErrorKind::Lexical(
-                LexicalError::UnexpectedToken(format!("{:?}", self.current_token)),
-            ))),
+            _ => Err(self.create_error(
+                            ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                                "{:?}",
+                                self.current_token
+                            ))),
+                            "Expected a valid TOML value (string, number, boolean, datetime, array, or inline table)",
+                        ))
+
         }
     }
 
@@ -372,27 +409,28 @@ impl TomlParser {
                 Token::Comma => {
                     self.advance()?;
                     if self.current_token == Token::RightBracket {
-                        return Err(ParseError::new(ParseErrorKind::Syntax(
-                            SyntaxError::InvalidValue(format!(
-                                "Trailing comma in {:?}",
-                                self.current_token
+                        return Err(self.create_error(
+                            ParseErrorKind::Syntax(SyntaxError::InvalidValue(
+                                "Trailing comma in array".to_string(),
                             )),
-                        )));
+                            "TOML arrays cannot end with a trailing comma",
+                        ));
                     }
                 }
                 Token::RightBracket => break,
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
-                            "{:?}. Expected , or ]",
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                            "{:?}",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Expected ',' between array elements or ']' to close array",
+                    ));
                 }
             }
         }
 
-        self.advance()?; // consume ']'
+        self.advance()?;
         self.context.exit_nested();
         Ok(Value::Array(array))
     }
@@ -425,20 +463,25 @@ impl TomlParser {
                     s.clone()
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
-                            "{:?}. Expected key.",
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                            "{:?}",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Expected a valid TOML key",
+                    ))
                 }
             };
             self.advance()?;
 
             if self.current_token != Token::Equals {
-                return Err(ParseError::new(ParseErrorKind::Lexical(
-                    LexicalError::UnexpectedToken(format!("{:?}. Expected =", self.current_token)),
-                )));
+                return Err(self.create_error(
+                    ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                        "{:?}",
+                        self.current_token
+                    ))),
+                    "Expected '=' after key in key-value pair",
+                ));
             }
             self.advance()?;
 
@@ -454,12 +497,13 @@ impl TomlParser {
                     break;
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Lexical(
-                        LexicalError::UnexpectedToken(format!(
-                            "{:?}. Expected , or }}",
+                    return Err(self.create_error(
+                        ParseErrorKind::Lexical(LexicalError::UnexpectedToken(format!(
+                            "{:?}",
                             self.current_token
-                        )),
-                    )))
+                        ))),
+                        "Expected ',' between array elements or '}}' to close array",
+                    ));
                 }
             }
         }
@@ -500,9 +544,10 @@ impl TomlParser {
                             arr.push(Value::Map(HashMap::new()));
                         }
                         _ => {
-                            return Err(ParseError::new(ParseErrorKind::Semantic(
-                                SemanticError::NestedTableError,
-                            )))
+                            return Err(self.create_error(
+                                ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                                "Cannot redefine array table as regular table",
+                            ))
                         }
                     }
                 }
@@ -515,15 +560,17 @@ impl TomlParser {
                     if let Some(Value::Map(table)) = arr.last_mut() {
                         table
                     } else {
-                        return Err(ParseError::new(ParseErrorKind::Semantic(
-                            SemanticError::NestedTableError,
-                        )));
+                        return Err(self.create_error(
+                            ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                            "Cannot redefine array table as regular table",
+                        ));
                     }
                 }
                 _ => {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::NestedTableError,
-                    )))
+                    return Err(self.create_error(
+                        ParseErrorKind::Semantic(SemanticError::NestedTableError),
+                        "Cannot redefine array table as regular table",
+                    ));
                 }
             };
 
@@ -535,39 +582,15 @@ impl TomlParser {
     }
 
     fn detect_circular_reference(&self, path: &[String]) -> Result<()> {
-        let full_path = path.join(".");
-        let mut current_path = String::new();
-
-        for segment in path {
-            if !current_path.is_empty() {
-                current_path.push('.');
-            }
-            current_path.push_str(segment);
-
-            // Check if this path exists and references the target path
-            if let Some(Value::Map(table)) = self.tables.get(&current_path) {
-                if contains_path(table, &full_path) {
-                    return Err(ParseError::new(ParseErrorKind::Semantic(
-                        SemanticError::CircularReference,
-                    )));
-                }
+        let mut seen = std::collections::HashSet::new();
+        for key in path {
+            if !seen.insert(key) {
+                return Err(self.create_error(
+                    ParseErrorKind::Semantic(SemanticError::CircularReference),
+                    "Circular table reference detected in TOML document",
+                ));
             }
         }
         Ok(())
     }
-}
-
-fn contains_path(table: &HashMap<String, Value>, target_path: &str) -> bool {
-    for (key, value) in table {
-        match value {
-            Value::Map(inner_table) => {
-                let current_path = format!("{}.{}", target_path, key);
-                if current_path == target_path || contains_path(inner_table, target_path) {
-                    return true;
-                }
-            }
-            _ => continue,
-        }
-    }
-    false
 }

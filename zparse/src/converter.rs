@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 mod json_to_toml;
 mod toml_to_json;
 
@@ -6,7 +8,6 @@ pub use toml_to_json::TomlToJsonConverter;
 
 use crate::error::{ParseError, ParseErrorKind, Result};
 use crate::parser::Value;
-use std::collections::HashMap;
 
 /// High-level “Converter” utility struct that delegates to the specialized
 /// implementations for JSON↔TOML conversions.

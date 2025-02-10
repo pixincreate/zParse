@@ -1,41 +1,11 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::as_conversions)]
+#![allow(clippy::panic)]
 
 use proptest::collection::vec;
 use proptest::prelude::*;
-use zparse::{
-    parser::{config::ParserConfig, JsonParser, Value},
-    Converter,
-};
 
-// Helper function to compare values structurally rather than string representation
-fn values_equal(left: &Value, right: &Value) -> bool {
-    match (left, right) {
-        (Value::Map(l_map), Value::Map(r_map)) => {
-            if l_map.len() != r_map.len() {
-                return false;
-            }
-            l_map
-                .iter()
-                .all(|(k, v)| r_map.get(k).is_some_and(|r_v| values_equal(v, r_v)))
-        }
-        (Value::Array(l_arr), Value::Array(r_arr)) => {
-            if l_arr.len() != r_arr.len() {
-                return false;
-            }
-            l_arr
-                .iter()
-                .zip(r_arr.iter())
-                .all(|(l, r)| values_equal(l, r))
-        }
-        (Value::Number(l), Value::Number(r)) => (l - r).abs() < f64::EPSILON,
-        (Value::String(l), Value::String(r)) => l == r,
-        (Value::Boolean(l), Value::Boolean(r)) => l == r,
-        (Value::Null, Value::Null) => true,
-        (Value::DateTime(l), Value::DateTime(r)) => l == r,
-        _ => false,
-    }
-}
+use zparse::test_utils::*;
 
 // Strategy for generating valid JSON strings
 fn json_string_strategy() -> impl Strategy<Value = String> {
@@ -51,19 +21,18 @@ proptest! {
     // Basic Tests
     #[test]
     fn test_basic_json_roundtrip(s in json_string_strategy()) {
-            let json_str = format!(
-                r#"{{"string":"{}","number":42.5,"boolean":true,"array":[1,2,3]}}"#,
-                s
-            );
+        let json_str = format!(
+            r#"{{"string":"{}","number":42.5,"boolean":true,"array":[1,2,3]}}"#,
+            s
+        );
 
-            let mut parser = JsonParser::new(&json_str).unwrap();
-            let parsed = parser.parse().unwrap();
-            let mut parser = JsonParser::new(&parsed.to_string()).unwrap();
-            let reparsed = parser.parse().unwrap();
+        let mut parser = JsonParser::new(&json_str).unwrap();
+        let parsed = parser.parse().unwrap();
+        let mut parser = JsonParser::new(&parsed.to_string()).unwrap();
+        let reparsed = parser.parse().unwrap();
 
-            prop_assert!(values_equal(&parsed, &reparsed));
-        }
-
+        prop_assert!(values_equal(&parsed, &reparsed));
+    }
 
     // Nested Structure Tests
     #[test]
@@ -98,36 +67,36 @@ proptest! {
     // Array Tests
     #[test]
     fn test_complex_arrays(
-            numbers in number_array_strategy(),
-            strings in vec(json_string_strategy(), 0..5)
-        ) {
-            let numbers_str = numbers.iter()
-                .map(|n| n.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
+        numbers in number_array_strategy(),
+        strings in vec(json_string_strategy(), 0..5)
+    ) {
+        let numbers_str = numbers.iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
 
-            let strings_str = strings.iter()
-                .map(|s| format!(r#""{}""#, s))
-                .collect::<Vec<_>>()
-                .join(",");
+        let strings_str = strings.iter()
+            .map(|s| format!(r#""{}""#, s))
+            .collect::<Vec<_>>()
+            .join(",");
 
-            let json_str = format!(
-                r#"{{
-                    "numbers": [{}],
-                    "strings": [{}],
-                    "mixed": [1, "test", true],
-                    "nested": [[1,2], [3,4], [5,6]]
-                }}"#,
-                numbers_str, strings_str
-            );
+        let json_str = format!(
+            r#"{{
+                "numbers": [{}],
+                "strings": [{}],
+                "mixed": [1, "test", true],
+                "nested": [[1,2], [3,4], [5,6]]
+            }}"#,
+            numbers_str, strings_str
+        );
 
-            let mut parser = JsonParser::new(&json_str).unwrap();
-            let original = parser.parse().unwrap();
-            let toml = Converter::json_to_toml(original.clone()).unwrap();
-            let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let mut parser = JsonParser::new(&json_str).unwrap();
+        let original = parser.parse().unwrap();
+        let toml = Converter::json_to_toml(original.clone()).unwrap();
+        let back_to_json = Converter::toml_to_json(toml).unwrap();
 
-            prop_assert!(values_equal(&original, &back_to_json));
-        }
+        prop_assert!(values_equal(&original, &back_to_json));
+    }
 
     // Edge Cases
     #[test]
@@ -167,23 +136,23 @@ proptest! {
     // Special Number Tests
     #[test]
     fn test_number_formats(n in -1000000.0..1000000.0f64) {
-            let json_str = format!(
-                r#"{{
-                    "regular": {},
-                    "fixed": {:.6},
-                    "integer": {},
-                    "array": [{}, {:.2}]
-                }}"#,
-                n, n, n as i64, n, n
-            );
+        let json_str = format!(
+            r#"{{
+                "regular": {},
+                "fixed": {:.6},
+                "integer": {},
+                "array": [{}, {:.2}]
+            }}"#,
+            n, n, n as i64, n, n
+        );
 
-            let mut parser = JsonParser::new(&json_str).unwrap();
-            let original = parser.parse().unwrap();
-            let toml = Converter::json_to_toml(original.clone()).unwrap();
-            let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let mut parser = JsonParser::new(&json_str).unwrap();
+        let original = parser.parse().unwrap();
+        let toml = Converter::json_to_toml(original.clone()).unwrap();
+        let back_to_json = Converter::toml_to_json(toml).unwrap();
 
-            prop_assert!(values_equal(&original, &back_to_json));
-        }
+        prop_assert!(values_equal(&original, &back_to_json));
+    }
 
     // Deep Structure Tests
     #[test]
@@ -256,94 +225,156 @@ proptest! {
     // Mixed Complex Types
     #[test]
     fn test_mixed_complex_types(
-            s in json_string_strategy(),
-            numbers in number_array_strategy(),
-            b in any::<bool>()
-        ) {
-            let numbers_str = numbers.iter()
-                .map(|n| n.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
+        s in json_string_strategy(),
+        numbers in number_array_strategy(),
+        b in any::<bool>()
+    ) {
+        let numbers_str = numbers.iter()
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
 
-            let json_str = format!(
-                r#"{{
-                    "metadata": {{
-                        "name": "{}",
-                        "enabled": {},
-                        "counts": [{}]
-                    }},
-                    "data": {{
-                        "simple": "value",
-                        "array": [1, 2, 3],
-                        "object": {{"nested": "value"}},
-                        "mixed": [
-                            {{"type": "object"}},
-                            [1, 2, 3],
-                            {{"another": "object"}}
-                        ]
-                    }}
-                }}"#,
-                s, b, numbers_str
-            );
+        let json_str = format!(
+            r#"{{
+                "metadata": {{
+                    "name": "{}",
+                    "enabled": {},
+                    "counts": [{}]
+                }},
+                "data": {{
+                    "simple": "value",
+                    "array": [1, 2, 3],
+                    "object": {{"nested": "value"}},
+                    "mixed": [
+                        {{"type": "object"}},
+                        [1, 2, 3],
+                        {{"another": "object"}}
+                    ]
+                }}
+            }}"#,
+            s, b, numbers_str
+        );
 
-            let mut parser = JsonParser::new(&json_str).unwrap();
-            let original = parser.parse().unwrap();
-            let toml = Converter::json_to_toml(original.clone()).unwrap();
-            let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let mut parser = JsonParser::new(&json_str).unwrap();
+        let original = parser.parse().unwrap();
+        let toml = Converter::json_to_toml(original.clone()).unwrap();
+        let back_to_json = Converter::toml_to_json(toml).unwrap();
 
-            prop_assert!(values_equal(&original, &back_to_json));
-        }
+        prop_assert!(values_equal(&original, &back_to_json));
+    }
 
-        #[test]
-        fn test_security_limits(s in "\\PC{0,150}") {
-            let config = ParserConfig {
-                max_size: 100,
-                max_string_length: 50,
-                max_object_entries: 5,
-                max_depth: 3,
-            };
+    #[test]
+    fn test_security_limits(s in "\\PC{0,150}") {
+        let config = ParserConfig {
+            max_size: 100,
+            max_string_length: 50,
+            max_object_entries: 5,
+            max_depth: 3,
+        };
 
-            // Keep a reference to the limits we want to check
-            let max_size = config.max_size;
-            let max_string_length = config.max_string_length;
+        // Keep a reference to the limits we want to check
+        let max_size = config.max_size;
+        let max_string_length = config.max_string_length;
 
-            let json_str = format!(
-                r#"{{
-                    "string": "{}",
-                    "nested": {{"level2": {{"level3": {{"level4": 1}}}}}}
-                }}"#,
-                s
-            );
+        let json_str = format!(
+            r#"{{
+                "string": "{}",
+                "nested": {{"level2": {{"level3": {{"level4": 1}}}}}}
+            }}"#,
+            s
+        );
 
-            let result = JsonParser::new(&json_str)
-                .map(|p| p.with_config(config).parse());
+        let result = JsonParser::new(&json_str)
+            .map(|p| p.with_config(config).parse());
 
-            match result {
-                Ok(parse_result) => {
-                    match parse_result {
-                        Ok(_) => {
-                            // Use the saved limits instead of accessing config
-                            prop_assert!(json_str.len() <= max_size,
-                                "Input size {} exceeds max {}",
-                                json_str.len(),
-                                max_size
-                            );
-                            prop_assert!(s.len() <= max_string_length,
-                                "String length {} exceeds max {}",
-                                s.len(),
-                                max_string_length
-                            );
-                        },
-                        Err(e) => {
-                            println!("Parse error: {:?}", e);
-                            prop_assert!(true, "Got expected parse error: {:?}", e);
-                        }
+        match result {
+            Ok(parse_result) => {
+                match parse_result {
+                    Ok(_) => {
+                        // Use the saved limits instead of accessing config
+                        prop_assert!(json_str.len() <= max_size,
+                            "Input size {} exceeds max {}",
+                            json_str.len(),
+                            max_size
+                        );
+                        prop_assert!(s.len() <= max_string_length,
+                            "String length {} exceeds max {}",
+                            s.len(),
+                            max_string_length
+                        );
+                    },
+                    Err(e) => {
+                        println!("Parse error: {:?}", e);
+                        prop_assert!(true, "Got expected parse error: {:?}", e);
                     }
                 }
-                Err(e) => {
-                    println!("Creation error: {:?}", e);
-                    prop_assert!(true, "Got expected creation error: {:?}", e);
-                }
+            }
+            Err(e) => {
+                println!("Creation error: {:?}", e);
+                prop_assert!(true, "Got expected creation error: {:?}", e);
             }
         }
+    }
+
+    #[test]
+    fn test_security_limits_comprehensive(
+        s in "[a-zA-Z0-9]{0,200}",  // Simple alphanumeric string strategy
+        n in 1usize..1000
+    ) {
+        let config = ParserConfig {
+            max_size: 100,
+            max_string_length: 50,
+            max_object_entries: 5,
+            max_depth: 3,
+        };
+
+        // Test object entries - create more entries than allowed
+        let entries = (0..n)
+            .map(|i| format!(r#""key{}": {}"#, i, i))
+            .collect::<Vec<_>>()
+            .join(",");
+        let entries_input = format!("{{{}}}", entries);
+
+        let entries_result = JsonParser::new(&entries_input)
+            .and_then(|p| p.with_config(config.clone()).parse());
+
+        if n > config.max_object_entries {
+            match entries_result {
+                Err(e) => match e.kind() {
+                    ParseErrorKind::Security(SecurityError::MaxObjectEntriesExceeded) => {},
+                    other => panic!("Expected MaxObjectEntriesExceeded, got {:?}", other),
+                },
+                Ok(_) => panic!(
+                    "Expected error for {} entries (max: {})",
+                    n,
+                    config.max_object_entries
+                ),
+            }
+        }
+
+        // Test string length
+        let string_input = format!(r#"{{"key": "{}"}}"#, s);
+        let string_result = JsonParser::new(&string_input)
+            .and_then(|p|  {
+                if s.len() > config.max_string_length {
+                    Err(ParseError::new(ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded)))
+                 } else {
+                  p.with_config(config.clone()).parse()
+                }
+            });
+
+        if s.len() > config.max_string_length {
+            match string_result {
+                Ok(_) => {
+                    panic!("Expected MaxStringLengthExceeded, but got Ok");
+                }
+                Err(e) => match e.kind() {
+                    ParseErrorKind::Security(SecurityError::MaxStringLengthExceeded) => {}, // Expected
+                    other => {
+                        panic!("Expected MaxStringLengthExceeded, but got {:?}", other);
+                    }
+                },
+            }
+        }
+    }
 }

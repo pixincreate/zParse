@@ -8,7 +8,7 @@ description = "A robust parser and converter library for JSON and TOML files wri
 license.workspace = true
 
 [dependencies]
-clap = { version = "4.5.28", features = ["std", "derive", "help", "usage"] }
+clap = { version = "4.5.29", features = ["std", "derive", "help", "usage"] }
 tracing = "0.1.41"
 parking_lot = "0.12.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

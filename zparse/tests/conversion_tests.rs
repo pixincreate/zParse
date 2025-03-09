@@ -11,7 +11,7 @@ fn test_json_to_toml_conversion() -> Result<()> {
 
     let mut json_parser = JsonParser::new(&test_data.medium_json)?;
     let json_value = json_parser.parse()?;
-    let toml_value = Converter::json_to_toml(json_value.clone())?;
+    let toml_value = Converter::json_to_toml(&json_value)?;
 
     let mut toml_parser = TomlParser::new(&test_data.medium_toml)?;
     let expected_value = toml_parser.parse()?;
@@ -30,7 +30,7 @@ fn test_toml_to_json_conversion() -> Result<()> {
 
     let mut toml_parser = TomlParser::new(&test_data.medium_toml)?;
     let toml_value = toml_parser.parse()?;
-    let json_value = Converter::toml_to_json(toml_value.clone())?;
+    let json_value = Converter::toml_to_json(&toml_value)?;
 
     let mut json_parser = JsonParser::new(&test_data.medium_json)?;
     let expected_value = json_parser.parse()?;
@@ -99,8 +99,8 @@ fn test_json_toml_json_roundtrip() -> Result<()> {
     let mut original_json = JsonParser::new(&test_data.medium_json)?;
     let json_value = original_json.parse()?;
 
-    let toml_value = Converter::json_to_toml(json_value.clone())?;
-    let converted_back = Converter::toml_to_json(toml_value.clone())?;
+    let toml_value = Converter::json_to_toml(&json_value)?;
+    let converted_back = Converter::toml_to_json(&toml_value)?;
 
     assert_values_equal(
         &toml_value,
@@ -118,8 +118,8 @@ fn test_toml_json_toml_roundtrip() -> Result<()> {
     let mut original_toml = TomlParser::new(&test_data.medium_toml)?;
     let toml_value = original_toml.parse()?;
 
-    let json_value = Converter::toml_to_json(toml_value.clone())?;
-    let converted_back = Converter::json_to_toml(json_value.clone())?;
+    let json_value = Converter::toml_to_json(&toml_value)?;
+    let converted_back = Converter::json_to_toml(&json_value)?;
 
     assert_values_equal(
         &json_value,
@@ -136,7 +136,7 @@ fn converter_null_value_error() {
     // because TOML does not support null values.
     let input = r#"{"key": null}"#;
     let json_value = parse_json(input).expect("JSON should parse successfully");
-    let result = Converter::json_to_toml(json_value);
+    let result = Converter::json_to_toml(&json_value);
     assert!(result.is_err(), "Expected converter error for null value");
 
     let err = result.unwrap_err();
@@ -157,7 +157,7 @@ fn converter_null_value_error() {
 fn test_array_with_null_conversion() {
     let input = r#"{"array": [1, null, 3]}"#;
     let json_value = parse_json(input).expect("JSON should parse successfully");
-    let result = Converter::json_to_toml(json_value);
+    let result = Converter::json_to_toml(&json_value);
     assert!(result.is_err(), "Expected error for array containing null");
 
     let err = result.unwrap_err();
@@ -180,7 +180,7 @@ fn test_array_with_null_conversion() {
 fn test_error_location_tracking() -> Result<()> {
     let input = r#"{"key": null}"#; // Invalid TOML value
     let json_value = parse_json(input)?;
-    let result = Converter::json_to_toml(json_value);
+    let result = Converter::json_to_toml(&json_value);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -213,7 +213,7 @@ fn test_nested_location_tracking() -> Result<()> {
         }
     }"#;
     let json_value = parse_json(input)?;
-    let result = Converter::json_to_toml(json_value);
+    let result = Converter::json_to_toml(&json_value);
 
     assert!(result.is_err());
     let err = result.unwrap_err();

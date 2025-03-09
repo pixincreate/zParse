@@ -64,11 +64,11 @@ fn bench_conversions(c: &mut Criterion) {
     let toml_value = toml_parser.parse().unwrap();
 
     group.bench_function("json_to_toml", |b| {
-        b.iter(|| Converter::json_to_toml(black_box(json_value.clone())).unwrap());
+        b.iter(|| Converter::json_to_toml(black_box(&json_value)).unwrap());
     });
 
     group.bench_function("toml_to_json", |b| {
-        b.iter(|| Converter::toml_to_json(black_box(toml_value.clone())).unwrap());
+        b.iter(|| Converter::toml_to_json(black_box(&toml_value)).unwrap());
     });
 
     group.finish();

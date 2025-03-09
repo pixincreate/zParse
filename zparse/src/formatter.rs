@@ -1,3 +1,5 @@
+use std::fmt;
+
 mod json;
 mod toml;
 
@@ -23,6 +25,16 @@ impl Default for FormatConfig {
             indent_spaces: 2,
             sort_keys: true,
         }
+    }
+}
+
+impl fmt::Display for FormatConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "FormatConfig {{ indent_spaces: {}, sort_keys: {} }}",
+            self.indent_spaces, self.sort_keys
+        )
     }
 }
 

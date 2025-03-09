@@ -308,6 +308,18 @@ impl Error for ParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.source.as_ref().map(Box::as_ref)
     }
+
+    fn description(&self) -> &str {
+        match &self.kind {
+            ParseErrorKind::Conversion(_) => "conversion error",
+            ParseErrorKind::Format(_) => "format error",
+            ParseErrorKind::IO(_) => "I/O error",
+            ParseErrorKind::Lexical(_) => "lexical error",
+            ParseErrorKind::Security(_) => "security error",
+            ParseErrorKind::Semantic(_) => "semantic error",
+            ParseErrorKind::Syntax(_) => "syntax error",
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, ParseError>;
@@ -331,5 +343,61 @@ impl Location {
         }
 
         error
+    }
+}
+
+impl From<std::io::Error> for ParseError {
+    fn from(err: std::io::Error) -> Self {
+        let kind = match err.kind() {
+            std::io::ErrorKind::NotFound => {
+                ParseErrorKind::IO(IOError::FileNotFound(err.to_string()))
+            }
+            std::io::ErrorKind::PermissionDenied => {
+                ParseErrorKind::IO(IOError::PermissionDenied(err.to_string()))
+            }
+            _ => ParseErrorKind::IO(IOError::ReadError(err.to_string())),
+        };
+
+        Self {
+            kind,
+            location: None,
+            source: Some(Box::new(err)), // Store the original error
+            context: None,
+        }
+    }
+}
+
+impl From<std::num::ParseIntError> for ParseError {
+    fn from(err: std::num::ParseIntError) -> Self {
+        Self {
+            kind: ParseErrorKind::Lexical(LexicalError::InvalidNumber(err.to_string())),
+            location: None,
+            source: Some(Box::new(err)),
+            context: None,
+        }
+    }
+}
+
+impl From<std::num::ParseFloatError> for ParseError {
+    fn from(err: std::num::ParseFloatError) -> Self {
+        Self {
+            kind: ParseErrorKind::Lexical(LexicalError::InvalidNumber(err.to_string())),
+            location: None,
+            source: Some(Box::new(err)),
+            context: None,
+        }
+    }
+}
+
+impl From<std::str::Utf8Error> for ParseError {
+    fn from(err: std::str::Utf8Error) -> Self {
+        Self {
+            kind: ParseErrorKind::Lexical(LexicalError::InvalidString(
+                "Invalid UTF-8 sequence".to_string(),
+            )),
+            location: None,
+            source: Some(Box::new(err)),
+            context: None,
+        }
     }
 }

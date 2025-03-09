@@ -9,7 +9,7 @@ impl CommonFormatter for JsonFormatter {}
 
 impl Formatter for JsonFormatter {
     fn format(&self, value: &Value, config: &FormatConfig) -> Result<String> {
-        Ok(Self::format_value(value, 0, config))?
+        Self::format_value(value, 0, config)
     }
 }
 

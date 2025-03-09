@@ -1,12 +1,14 @@
 [workspace]
-members = [
-    "zparse",
-    "fuzz"
-]
+members = ["zparse", "fuzz"]
 resolver = "2"
 
 [workspace.package]
 version = "1.0.0"
 edition = "2021"
 authors = ["Pa1Nark <pa1nark@pixincreate.dev>"]
-license = "GPL-3.0"
+license-file = "LICENSE"
+readme = "README.md"
+repository = "https://github.com/pixincreate/zParse"
+keywords = ["zparse", "parser", "json", "toml"]
+categories = ["command-line-utilities", "development-tools"]
+

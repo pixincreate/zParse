@@ -195,7 +195,7 @@ mod json_tests {
 
         let mut parser = JsonParser::new(input)?;
         let json_value = parser.parse()?;
-        let toml_value = Converter::json_to_toml(json_value)?;
+        let toml_value = Converter::json_to_toml(&json_value)?;
 
         // Verify the conversion maintained the structure
         if let Value::Map(root) = toml_value {

@@ -32,3 +32,24 @@ impl fmt::Display for FileType {
         }
     }
 }
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LeftBrace => write!(f, "{{"),
+            Self::RightBrace => write!(f, "}}"),
+            Self::LeftBracket => write!(f, "["),
+            Self::RightBracket => write!(f, "]"),
+            Self::Colon => write!(f, ":"),
+            Self::Comma => write!(f, ","),
+            Self::Equals => write!(f, "="),
+            Self::Dot => write!(f, "."),
+            Self::String(s) => write!(f, "\"{}\"", s),
+            Self::Number(n) => write!(f, "{}", n),
+            Self::Boolean(b) => write!(f, "{}", b),
+            Self::DateTime(dt) => write!(f, "{}", dt),
+            Self::Null => write!(f, "null"),
+            Self::EOF => write!(f, "EOF"),
+        }
+    }
+}

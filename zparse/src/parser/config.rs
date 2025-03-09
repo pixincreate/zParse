@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::error::{ParseError, ParseErrorKind, Result, SecurityError};
 
 /// Maximum nesting depth (32) based on common JSON/TOML usage patterns
@@ -37,6 +39,16 @@ impl Default for ParserConfig {
             max_string_length: DEFAULT_MAX_STRING_LENGTH,
             max_object_entries: DEFAULT_MAX_OBJECT_ENTRIES,
         }
+    }
+}
+
+impl fmt::Display for ParserConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ParserConfig {{ max_depth: {}, max_size: {}, max_string_length: {}, max_object_entries: {} }}",
+            self.max_depth, self.max_size, self.max_string_length, self.max_object_entries
+        )
     }
 }
 

@@ -20,7 +20,11 @@ impl CommonConverter for TomlToJsonConverter {
         match value {
             Value::Map(map) => Self::convert_map(map.clone(), ctx),
             Value::Array(arr) => Self::convert_array(arr.clone(), ctx),
-            _ => Ok(value),
+            Value::Boolean(b) => Ok(Value::Boolean(*b)),
+            Value::Number(n) => Ok(Value::Number(*n)),
+            Value::String(s) => Ok(Value::String(s.clone())),
+            Value::DateTime(dt) => Ok(Value::DateTime(dt.clone())),
+            Value::Null => Ok(Value::Null),
         }
     }
 }

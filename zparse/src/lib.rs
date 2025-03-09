@@ -8,7 +8,7 @@
 //!
 //! # Examples
 //! ```
-//! use zparse::{parse_file, Result};
+//! use zparse::{parse_file, error::Result};
 //!
 //! fn example() -> Result<()> {
 //!     let value = parse_file("config.json")?;
@@ -19,7 +19,6 @@
 
 use tracing::{debug, info, instrument, warn};
 
-pub mod common;
 pub mod converter;
 pub mod enums;
 pub mod error;
@@ -29,12 +28,9 @@ pub mod test_utils;
 pub mod utils;
 
 // Re-exports
-pub use converter::Converter;
-pub use error::{IOError, ParseError, ParseErrorKind, Result, SemanticError};
-pub use parser::{json::JsonParser, toml::TomlParser, value::Value};
+use error::{IOError, ParseError, ParseErrorKind, Result, SemanticError};
+use parser::value::Value;
 use utils::{parse_json, parse_toml};
-
-pub use common::value_compare::values_equal;
 
 #[instrument]
 pub fn parse_file(path: &str) -> Result<Value> {

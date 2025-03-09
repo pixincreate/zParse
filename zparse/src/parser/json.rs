@@ -9,9 +9,8 @@
 
 use std::collections::HashMap;
 
-use super::config::ParserConfig;
+use super::{config::ParserConfig, state::ParserState};
 use crate::{
-    common::parser_state::ParserState,
     enums::Token,
     error::{
         LexicalError, Location, ParseError, ParseErrorKind, Result, SemanticError, SyntaxError,

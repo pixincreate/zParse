@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use zparse::{error::ConversionError, test_utils::*};
+use zparse::test_utils::*;
 
 #[test]
 fn test_json_to_toml_conversion() -> Result<()> {

@@ -5,7 +5,9 @@ authors.workspace = true
 edition.workspace = true
 rust-version = "1.82.0"
 description = "A robust parser and converter library for JSON and TOML files written in Rust."
-license.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
 
 [dependencies]
 clap = { version = "4.5.31", features = ["std", "derive", "help", "usage"] }

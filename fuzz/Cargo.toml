@@ -3,7 +3,7 @@ name = "zparse-fuzz"
 version.workspace = true
 edition.workspace = true
 publish = false
-license.workspace = true
+license-file.workspace = true
 
 [package.metadata]
 cargo-fuzz = true

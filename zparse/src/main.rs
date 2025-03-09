@@ -73,8 +73,8 @@ fn run() -> Result<()> {
     // Handle conversion if requested
     let (final_value, output_format) = if let Some(convert_to) = args.convert {
         match (input_ext, convert_to.as_str()) {
-            ("json", "toml") => (Converter::json_to_toml(parsed_value)?, "toml"),
-            ("toml", "json") => (Converter::toml_to_json(parsed_value)?, "json"),
+            ("json", "toml") => (Converter::json_to_toml(&parsed_value)?, "toml"),
+            ("toml", "json") => (Converter::toml_to_json(&parsed_value)?, "json"),
             _ => {
                 return Err(ParseError::new(ParseErrorKind::Syntax(
                     SyntaxError::InvalidValue("conversion".to_string()),

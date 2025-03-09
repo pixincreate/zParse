@@ -22,11 +22,11 @@ pub struct ConversionContext {
 }
 
 impl Converter {
-    pub fn json_to_toml(json_value: Value) -> Result<Value> {
+    pub fn json_to_toml(json_value: &Value) -> Result<Value> {
         JsonToTomlConverter::convert(json_value)
     }
 
-    pub fn toml_to_json(toml_value: Value) -> Result<Value> {
+    pub fn toml_to_json(toml_value: &Value) -> Result<Value> {
         TomlToJsonConverter::convert(toml_value)
     }
 }
@@ -108,11 +108,11 @@ pub trait FormatConverter {
 pub trait CommonConverter {
     fn convert_map(map: HashMap<String, Value>, ctx: &mut ConversionContext) -> Result<Value>;
     fn convert_array(arr: Vec<Value>, ctx: &mut ConversionContext) -> Result<Value>;
-    fn convert_value(value: Value, ctx: &mut ConversionContext) -> Result<Value>;
+    fn convert_value(value: &Value, ctx: &mut ConversionContext) -> Result<Value>;
 
-    fn validate_root(value: Value) -> Result<HashMap<String, Value>> {
+    fn validate_root(value: &Value) -> Result<HashMap<String, Value>> {
         match value {
-            Value::Map(map) => Ok(map),
+            Value::Map(map) => Ok(map.clone()),
             _ => {
                 let location = Location::new(1, 1); // Root always starts at 1, 1
                 Err(location.create_error(
@@ -134,7 +134,7 @@ pub trait CommonConverter {
             // Use key length to estimate column position
             let column = ctx.column + key.len() + 2; // +2 for quotes
             ctx.enter_key(&key, ctx.line, column);
-            let converted = Self::convert_value(value, ctx).map_err(|e| {
+            let converted = Self::convert_value(&value, ctx).map_err(|e| {
                 let location = ctx.create_location();
                 let path = ctx.get_path();
                 location.create_error(e.kind().clone(), &format!("Error at '{}': {}", path, e))
@@ -151,10 +151,9 @@ pub trait CommonConverter {
             // Estimate position based on index
             let column = ctx.column + i * 2 + 1; // Simple estimation
             ctx.enter_key(&i.to_string(), ctx.line, column);
-            converted_array.push(Self::convert_value(value.clone(), ctx)?);
+            converted_array.push(Self::convert_value(value, ctx)?);
             ctx.exit_key();
         }
-
         Ok(converted_array)
     }
 }

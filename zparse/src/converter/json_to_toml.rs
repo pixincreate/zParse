@@ -38,10 +38,10 @@ impl CommonConverter for JsonToTomlConverter {
         Ok(Value::Array(converted))
     }
 
-    fn convert_value(value: Value, ctx: &mut ConversionContext) -> Result<Value> {
+    fn convert_value(value: &Value, ctx: &mut ConversionContext) -> Result<Value> {
         match value {
-            Value::Map(map) => Self::convert_map(map, ctx),
-            Value::Array(arr) => Self::convert_array(arr, ctx),
+            Value::Map(map) => Self::convert_map(map.clone(), ctx),
+            Value::Array(arr) => Self::convert_array(arr.clone(), ctx),
             Value::Null => {
                 let location = ctx.create_location();
                 let path = ctx.get_path();
@@ -72,7 +72,7 @@ impl JsonToTomlConverter {
     /// # Returns
     /// * `Ok(Value)` - The converted TOML value
     /// * `Err` - If the JSON structure cannot be represented in TOML
-    pub fn convert(value: Value) -> Result<Value> {
+    pub fn convert(value: &Value) -> Result<Value> {
         let map = Self::validate_root(value)?;
         let mut ctx = ConversionContext::new();
         Self::convert_map(map, &mut ctx)

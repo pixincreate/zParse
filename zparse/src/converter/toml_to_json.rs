@@ -16,17 +16,17 @@ impl CommonConverter for TomlToJsonConverter {
         Ok(Value::Array(converted))
     }
 
-    fn convert_value(value: Value, ctx: &mut ConversionContext) -> Result<Value> {
+    fn convert_value(value: &Value, ctx: &mut ConversionContext) -> Result<Value> {
         match value {
-            Value::Map(map) => Self::convert_map(map, ctx),
-            Value::Array(arr) => Self::convert_array(arr, ctx),
+            Value::Map(map) => Self::convert_map(map.clone(), ctx),
+            Value::Array(arr) => Self::convert_array(arr.clone(), ctx),
             _ => Ok(value),
         }
     }
 }
 
 impl TomlToJsonConverter {
-    pub fn convert(value: Value) -> Result<Value> {
+    pub fn convert(value: &Value) -> Result<Value> {
         let map = Self::validate_root(value)?;
         let mut ctx = ConversionContext::new();
         Self::convert_map(map, &mut ctx)

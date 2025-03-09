@@ -57,8 +57,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }
@@ -91,8 +91,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }
@@ -125,8 +125,8 @@ proptest! {
         for case in edge_cases {
             let mut parser = JsonParser::new(&case).unwrap();
             let original = parser.parse().unwrap();
-            let toml = Converter::json_to_toml(original.clone()).unwrap();
-            let back_to_json = Converter::toml_to_json(toml).unwrap();
+            let toml = Converter::json_to_toml(&original).unwrap();
+            let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
             prop_assert!(values_equal(&original, &back_to_json));
         }
@@ -147,8 +147,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }
@@ -186,8 +186,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }
@@ -215,8 +215,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }
@@ -256,8 +256,8 @@ proptest! {
 
         let mut parser = JsonParser::new(&json_str).unwrap();
         let original = parser.parse().unwrap();
-        let toml = Converter::json_to_toml(original.clone()).unwrap();
-        let back_to_json = Converter::toml_to_json(toml).unwrap();
+        let toml = Converter::json_to_toml(&original).unwrap();
+        let back_to_json = Converter::toml_to_json(&toml).unwrap();
 
         prop_assert!(values_equal(&original, &back_to_json));
     }

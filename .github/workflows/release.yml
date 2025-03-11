@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -11,7 +13,44 @@ env:
   PROJECT_NAME: "zparse"
 
 jobs:
+  pre-release:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check conditions for release
+        id: check
+        run: |
+          # If this is a tag push
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+            # Get the commit that this tag points to
+            TAG_COMMIT=$(git rev-list -n 1 $TAG)
+
+            # Fetch main branch to ensure it's available
+            git fetch origin main:main
+
+            # Check if this commit is on the main branch
+            if git branch --contains $TAG_COMMIT | grep -q "main"; then
+              echo "Tag $TAG is on main branch - proceeding with release"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Tag $TAG is not on main branch yet - skipping release"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Not a tag push, skipping release"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
   release:
+    needs: pre-release
+    if: needs.pre-release.outputs.should_release == 'true'
     name: release-${{ matrix.platform.asset_name }}
     runs-on: ${{ matrix.platform.os }}
     strategy:
@@ -36,14 +75,22 @@ jobs:
             target: x86_64-pc-windows-msvc
             asset_name: windows
             arch: x86_64
-    env:
-      BINARY_NAME: ${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set binary name
+        id: binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
+            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}.exe" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Extract Release Notes
         id: release-notes
@@ -91,16 +138,16 @@ jobs:
         run: |
           mkdir -p release
           cp target/${{ matrix.platform.target }}/release/${{ env.PROJECT_NAME }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
-             release/${{ env.BINARY_NAME }}
+             release/${{ steps.binary.outputs.name }}
 
       # Create checksum
       - name: Generate SHA-256
         run: |
           cd release
           if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            certutil -hashfile ${{ env.BINARY_NAME }} SHA256 | grep -v "hash" > ${{ env.BINARY_NAME }}.sha256
+            certutil -hashfile ${{ steps.binary.outputs.name }} SHA256 | grep -v "hash" > ${{ steps.binary.outputs.name }}.sha256
           else
-            shasum -a 256 ${{ env.BINARY_NAME }} > ${{ env.BINARY_NAME }}.sha256
+            shasum -a 256 ${{ steps.binary.outputs.name }} > ${{ steps.binary.outputs.name }}.sha256
           fi
 
       # Sign the artifacts
@@ -112,7 +159,7 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/id_signing
           chmod 600 ~/.ssh/id_signing
           cd release
-          ssh-keygen -Y sign -f ~/.ssh/id_signing -n file "${{ env.BINARY_NAME }}"
+          ssh-keygen -Y sign -f ~/.ssh/id_signing -n file "${{ steps.binary.outputs.name }}"
           rm ~/.ssh/id_signing
 
       # Create Release
@@ -121,9 +168,9 @@ jobs:
         with:
           name: "zParse ${{ github.ref_name }}"
           files: |
-            release/${{ env.BINARY_NAME }}
-            release/${{ env.BINARY_NAME }}.sha256
-            release/${{ env.BINARY_NAME }}.sig
+            release/${{ steps.binary.outputs.name }}
+            release/${{ steps.binary.outputs.name }}.sha256
+            release/${{ steps.binary.outputs.name }}.sig
           body: ${{ steps.release-notes.outputs.NOTES }}
           draft: false
           prerelease: false

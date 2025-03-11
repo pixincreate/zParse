@@ -18,6 +18,7 @@
 
 - Stop fuzzing on windows due to compatibility issues (`libfuzzer` is not supported on Windows platform)
 - Refactor release script to automate versioning and changelog generation
+- Update the release script to include branch verification
 
 ### Chore
 - Update dependencies to latest versions

@@ -24,6 +24,12 @@
 - Update license information in README
 - Add templates and guidelines for contributing
 
+### Security
+
+- Generate and verify `sha-256` checksums for release binaries
+- Generate and verify `ssh` signatures for release binaries
+- Provide users to verify the integrity of the downloaded binaries in the [README.md](REAME.md)
+
 ## [v1.0.0] - 2025-01-26
 
 ### Feat

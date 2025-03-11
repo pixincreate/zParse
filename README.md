@@ -21,6 +21,40 @@ Add to your Cargo.toml:
 zparse = "1.0.0"
 ```
 
+## Verifying Downloads
+
+For security, zParse release binaries come with both SHA-256 checksums (`.sha256` files) and SSH signatures (`.sig` files). It is recommended to verify both before using downloaded binaries.
+
+### Verifying SSH Signatures
+
+SSH signatures cryptographically verify that the binary was signed by the zParse project maintainer's private key.
+
+To verify the digital signatures of the downloads, follow [the steps here](https://github.com/pixincreate/pixincreate/blob/main/VERIFY_SSH_SIGNATURES.md).
+
+### Verifying SHA-256 Checksums
+
+SHA-256 checksums verify file integrity, ensuring the download wasn't corrupted or tampered with.
+
+To verify the SHA256 checksums, use the following commands:
+
+- For Unix-like systems and Windows (Command Prompt):
+
+  ```bash
+  sha256sum -c <filename>.sha256
+  ```
+
+- For Windows (PowerShell):
+
+  ```powershell
+  Get-FileHash "target/package/zparse-<platform>-<platform-arch>.<extension>" -Algorithm SHA256
+  ```
+
+If the file is successfully verified, the output will be:
+
+```shell
+target/package/<BINARY_NAME>: OK
+```
+
 ## Usage
 
 ### Command Line

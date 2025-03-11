@@ -27,6 +27,7 @@
 - Update license information in README
 - Add templates and guidelines for contributing
 - Update README with more detailed information and usage
+- Move to GPL-3.0 license for better compatibility with other projects
 
 ### Security
 

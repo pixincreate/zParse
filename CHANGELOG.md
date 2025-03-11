@@ -13,6 +13,7 @@
 - Documentation coverage for all public APIs
 - Error handling and reporting for edge cases
 - Performance optimizations for parsing and conversion
+- Reduce usage of `clone()` for references
 
 ### CI
 
@@ -21,9 +22,11 @@
 - Update the release script to include branch verification
 
 ### Chore
+
 - Update dependencies to latest versions
 - Update license information in README
 - Add templates and guidelines for contributing
+- Update README with more detailed information and usage
 
 ### Security
 
@@ -37,6 +40,7 @@
 
 - Complete rewrite of the library with zero external dependencies for core functionality
 - JSON parser
+
   - Support for all JSON data types (null, boolean, number, string, array, object)
   - Strict JSON validation
   - Detailed error reporting with line and column information
@@ -44,6 +48,7 @@
   - Proper handling of escape sequences in strings
 
 - TOML parser
+
   - Support for basic key-value pairs
   - Table and nested table support
   - Array tables support
@@ -53,23 +58,27 @@
   - Proper whitespace handling
 
 - Format conversion
+
   - Bidirectional conversion between JSON and TOML
   - Structural preservation during conversion
   - Proper type mapping between formats
 
 - Pretty printing
+
   - Configurable indentation
   - Optional key sorting
   - Format-specific output styling
   - Preservation of data structure
 
 - Error handling
+
   - Custom error types with detailed messages
   - Line and column information for syntax errors
   - Context-aware error reporting
   - Proper error propagation
 
 - Testing infrastructure
+
   - Comprehensive unit tests
   - Property-based tests using proptest
   - Conversion test suite
@@ -77,6 +86,7 @@
   - Fuzzing targets
 
 - Development tools
+
   - Benchmark suite for performance monitoring
   - Fuzzing setup for finding edge cases
   - CI/CD pipeline with GitHub Actions

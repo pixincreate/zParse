@@ -6,10 +6,11 @@
 #   ```bash
 #   ./scripts/release.sh 1.0.1
 #   ```
-# 3. Wait for GitHub Actions to:
+# 3. Create PR from release/<version> targeting main
+# 4. After PR is merged, GitHub Actions will:
 #   - Build binaries for all platforms
-#   - Create GitHub release
-#   - Upload assets
+#   - Create GitHub release with tag
+#   - Upload assets to release
 # 4. Verify the release at: https://github.com/pixincreate/zparse/releases
 
 set -e
@@ -86,15 +87,21 @@ if [[ $REPLY =~ ^[Yy]$ ]]
 then
     # Commit changes
     git add Cargo.toml CHANGELOG.md
-    git commit -m "chore: release version $VERSION"
+    git commit -m "release(zParse): release version $VERSION"
 
     # Create and push tag
     git tag -a "v$VERSION" -m "zParse v$VERSION"
 
     echo "Pushing changes..."
-    git push origin main "v$VERSION"
+    git push origin "$VERSION_BRANCH" "v$VERSION"
 
     echo "zParse release v$VERSION prepared and pushed!"
+    echo ""
+    echo "Next steps:"
+    echo "1. Create a PR from $VERSION_BRANCH to main"
+    echo "2. After the PR is merged, the GitHub Actions workflow will automatically create the release"
+    echo "   and build binaries for all platforms"
+    echo "3. Verify the release at: https://github.com/pixincreate/zparse/releases"
 else
     # Revert changes if user doesn't confirm
     git checkout Cargo.toml CHANGELOG.md

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-03-12
+
 ### Feat
 
 - Reduce duplicate code in JSON and TOML parsers

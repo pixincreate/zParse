@@ -5,7 +5,7 @@
 
 version: 2
 updates:
-  # Enable version updates for npm
+  # Enable version updates for cargo
   - package-ecosystem: "cargo"
     # Look for `Cargo.toml` and `Cargo.lock` files in the `root` directory
     directory: "/"

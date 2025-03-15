@@ -34,7 +34,7 @@ validate_changelog() {
         echo "Please update CHANGELOG.md before releasing"
         exit 1
     fi
-    
+
     if grep -q "\[$VERSION\]" CHANGELOG.md; then
         echo "Warning: Version $VERSION already exists in CHANGELOG.md"
         echo "This may cause issues with the automated release process"
@@ -53,17 +53,17 @@ create_tag() {
         echo "Error: You must be on the main branch to create a release tag"
         exit 1
     fi
-    
+
     # Ensure working directory is clean
     if ! git diff-index --quiet HEAD --; then
         echo "Error: You have uncommitted changes"
         echo "Please commit or stash them before creating a release"
         exit 1
     fi
-    
+
     # Validate changelog
     validate_changelog
-    
+
     # Confirm with user
     echo "This will create and push tag v$VERSION, triggering the release workflow."
     echo "Changelog entries from the [Unreleased] section will be moved to version $VERSION."
@@ -72,7 +72,7 @@ create_tag() {
         echo "Operation cancelled"
         exit 0
     fi
-    
+
     echo "Creating tag v$VERSION..."
     git tag -a "v$VERSION" -m "zParse v$VERSION"
     git push origin "v$VERSION"
@@ -88,7 +88,7 @@ delete_tag() {
         echo "Operation cancelled"
         exit 0
     fi
-    
+
     echo "Deleting tag v$VERSION..."
     git tag -d "v$VERSION" 2>/dev/null || echo "Tag v$VERSION not found locally"
     git push --delete origin "v$VERSION" 2>/dev/null || echo "Tag v$VERSION not found on remote"

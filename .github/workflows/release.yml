@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (without v prefix, e.g., 1.1.0)"
+        required: true
+        default: "0.0.0-test"
   push:
     tags: ["v*"]
 
@@ -40,7 +46,15 @@ jobs:
       - name: Extract version from tag
         id: get-version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          # If triggered by workflow_dispatch, use the input version
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Using manually provided version: $VERSION"
+          else
+            # Extract from tag
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Extracted version from tag: $VERSION"
+          fi
 
           if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
             echo "::error::Invalid version format: $VERSION. Expected semantic versioning (e.g., 1.2.3 or 1.2.3-alpha.1)"

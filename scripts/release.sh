@@ -1,102 +1,105 @@
 #!/usr/bin/env bash
 
 # Release Process
-# 1. Update CHANGELOG.md with new version and changes
 # 2. Run release script:
 #   ```bash
-#   ./scripts/release.sh 1.0.1
+#   ./scripts/release.sh create_tag 1.0.1
 #   ```
-# 3. Wait for GitHub Actions to:
-#   - Build binaries for all platforms
-#   - Create GitHub release
-#   - Upload assets
-# 4. Verify the release at: https://github.com/pixincreate/zparse/releases
+# 3. Wait for the tag to be pushed to the repository which will trigger deployment pipeline
 
 set -e
 
-# Check if version is provided
-if [ -z "$1" ]; then
-    echo "Usage: $0 <version>"
-    echo "Example: $0 1.0.0"
+# Check if function and version is provided
+if [[ -z "$1" || -z "$2" ]]; then
+    echo "Usage: $0 <function_name> <version>"
+    echo "Available functions: create_tag, delete_tag"
+    echo "Example: $0 create_tag 1.0.0"
     exit 1
 fi
 
-VERSION="$1"
-CRATE_VERSION="version = \"$VERSION\""
-DATE=$(date +%Y-%m-%d)
+FUNCTION="$1"
+VERSION="$2"
 
-# Check current branch and manage release branch
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-VERSION_BRANCH="release/$VERSION"
+# Validate version format (semver)
+if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
+    echo "Error: Invalid version format '$VERSION'"
+    echo "Version must follow semantic versioning: X.Y.Z or X.Y.Z-suffix"
+    exit 1
+fi
 
-echo "Current branch: $CURRENT_BRANCH"
-echo "Target release branch: $VERSION_BRANCH"
-
-# Check if already on the release branch
-if [ "$CURRENT_BRANCH" != "$VERSION_BRANCH" ]; then
-    echo "Not on the release branch. Checking if release branch exists..."
-
-    # Check if branch exists locally
-    if git show-ref --quiet refs/heads/"$VERSION_BRANCH"; then
-        echo "Release branch exists locally. Checking out $VERSION_BRANCH..."
-        git checkout "$VERSION_BRANCH"
-    else
-        # Check if branch exists remotely
-        if git ls-remote --heads --exit-code origin "$VERSION_BRANCH" > /dev/null 2>&1; then
-            echo "Release branch exists in remote. Fetching and checking out $VERSION_BRANCH..."
-            git fetch origin "$VERSION_BRANCH":"$VERSION_BRANCH"
-            git checkout "$VERSION_BRANCH"
-        else
-            echo "Release branch does not exist. Creating new branch $VERSION_BRANCH from current branch..."
-            git checkout -b "$VERSION_BRANCH"
-            echo "Created new branch: $VERSION_BRANCH"
-        fi
-    fi
-
-    # Verify we're on the correct branch now
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$CURRENT_BRANCH" != "$VERSION_BRANCH" ]; then
-        echo "ERROR: Failed to switch to release branch. Currently on: $CURRENT_BRANCH"
-        echo "Please manually resolve branch issues before continuing."
+# Validate CHANGELOG.md has been updated
+validate_changelog() {
+    if ! grep -q "\[Unreleased\]" CHANGELOG.md; then
+        echo "Error: CHANGELOG.md doesn't contain an [Unreleased] section"
+        echo "Please update CHANGELOG.md before releasing"
         exit 1
     fi
+    
+    if grep -q "\[$VERSION\]" CHANGELOG.md; then
+        echo "Warning: Version $VERSION already exists in CHANGELOG.md"
+        echo "This may cause issues with the automated release process"
+        read -r -p "Continue anyway? (y/N): " confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            exit 1
+        fi
+    fi
+}
 
-    echo "Successfully switched to release branch: $CURRENT_BRANCH"
-else
-    echo "Already on the correct release branch: $CURRENT_BRANCH"
-fi
 
-# Update version in workspace Cargo.toml
-sed -i.bak "s/^version = .*/$CRATE_VERSION/" Cargo.toml
-rm Cargo.toml.bak  # Clean up backup file
-
-# Update CHANGELOG.md
-sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
-rm CHANGELOG.md.bak  # Clean up backup file
-
-# Show changes
-echo "Changes made:"
-echo "------------"
-git diff
-
-# Prompt for confirmation
-read -p "Do you want to commit these changes and create tag v$VERSION? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    # Commit changes
-    git add Cargo.toml CHANGELOG.md
-    git commit -m "chore: release version $VERSION"
-
-    # Create and push tag
+create_tag() {
+    # Ensure we're on the main branch
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [[ "$CURRENT_BRANCH" != "main" ]]; then
+        echo "Error: You must be on the main branch to create a release tag"
+        exit 1
+    fi
+    
+    # Ensure working directory is clean
+    if ! git diff-index --quiet HEAD --; then
+        echo "Error: You have uncommitted changes"
+        echo "Please commit or stash them before creating a release"
+        exit 1
+    fi
+    
+    # Validate changelog
+    validate_changelog
+    
+    # Confirm with user
+    echo "This will create and push tag v$VERSION, triggering the release workflow."
+    echo "Changelog entries from the [Unreleased] section will be moved to version $VERSION."
+    read -p "Continue? (y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Operation cancelled"
+        exit 0
+    fi
+    
+    echo "Creating tag v$VERSION..."
     git tag -a "v$VERSION" -m "zParse v$VERSION"
+    git push origin "v$VERSION"
+    echo "Tag v$VERSION created and pushed!"
+    echo "The release workflow should start automatically. Monitor progress at:"
+    echo "https://github.com/pixincreate/zparse/actions"
+}
 
-    echo "Pushing changes..."
-    git push origin main "v$VERSION"
+delete_tag() {
+    echo "Warning: This will delete tag v$VERSION locally and remotely."
+    read -r -p "Continue? (y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Operation cancelled"
+        exit 0
+    fi
+    
+    echo "Deleting tag v$VERSION..."
+    git tag -d "v$VERSION" 2>/dev/null || echo "Tag v$VERSION not found locally"
+    git push --delete origin "v$VERSION" 2>/dev/null || echo "Tag v$VERSION not found on remote"
+    echo "Tag v$VERSION deleted!"
+}
 
-    echo "zParse release v$VERSION prepared and pushed!"
-else
-    # Revert changes if user doesn't confirm
-    git checkout Cargo.toml CHANGELOG.md
-    echo "zParse release cancelled and changes reverted"
+# Check if function exists
+if [[ "$FUNCTION" != "create_tag" && "$FUNCTION" != "delete_tag" ]]; then
+    echo "Error: Unknown function '$FUNCTION'"
+    echo "Available functions: create_tag, delete_tag"
+    exit 1
 fi
+
+eval "$FUNCTION"

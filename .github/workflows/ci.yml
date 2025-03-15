@@ -120,7 +120,7 @@ jobs:
         run: cargo clippy --package zparse --all-features --all-targets
 
   docs:
-    name: Docs
+    name: documentation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

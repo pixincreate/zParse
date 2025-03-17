@@ -39,8 +39,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --global user.name "Nerdy Grapes"
-          git config --global user.email "${{ secrets.NERDY_ID}}+nerdy-grapes[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions[bot]@users.noreply.github.com"
 
       - name: Extract version from tag
         id: get-version
@@ -89,7 +89,7 @@ jobs:
       - name: Commit changes to main
         id: commit-changes
         run: |
-          git add Cargo.toml CHANGELOG.md
+          git add Cargo.toml Cargo.lock CHANGELOG.md
           git commit -m "release(zParse): version $VERSION [skip ci]"
           git push origin HEAD:main
           echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
@@ -142,7 +142,7 @@ jobs:
         id: release-notes
         if: matrix.platform.os == 'ubuntu-latest'
         run: |
-          VERSION=${needs.prepare-release.outputs.version}
+          VERSION=${{ needs.prepare-release.outputs.version }}
           NOTES=$(awk -v ver="$VERSION" '
             /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
             p { print }

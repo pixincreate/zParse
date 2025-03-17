@@ -40,17 +40,15 @@ jobs:
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
-          git config --global user.email "actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Extract version from tag
         id: get-version
         run: |
-          # If triggered by workflow_dispatch, use the input version
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VERSION="${{ github.event.inputs.version }}"
             echo "Using manually provided version: $VERSION"
           else
-            # Extract from tag
             VERSION=${GITHUB_REF#refs/tags/v}
             echo "Extracted version from tag: $VERSION"
           fi

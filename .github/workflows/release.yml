@@ -30,7 +30,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: false
 
       - name: Configure Git
         run: |
@@ -76,7 +75,7 @@ jobs:
       - name: Commit changes to main
         id: commit-changes
         run: |
-          git add Cargo.toml CHANGELOG.md
+          git add Cargo.toml Cargo.lock CHANGELOG.md
           git commit -m "release(zParse): version $VERSION [skip ci]"
           git push origin HEAD:main
           echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
@@ -129,7 +128,7 @@ jobs:
         id: release-notes
         if: matrix.platform.os == 'ubuntu-latest'
         run: |
-          VERSION=${needs.prepare-release.outputs.version}
+          VERSION=${{ needs.prepare-release.outputs.version }}
           NOTES=$(awk -v ver="$VERSION" '
             /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
             p { print }
@@ -156,7 +155,6 @@ jobs:
       - name: Install cross-compilation tools
         if: matrix.platform.target == 'aarch64-apple-darwin'
         run: |
-          brew install FiloSottile/musl-cross/musl-cross
           rustup target add aarch64-apple-darwin
 
       # Build the specific package
@@ -164,7 +162,7 @@ jobs:
         run: |
           cargo build --release --target ${{ matrix.platform.target }} -p ${{ env.PROJECT_NAME }}
         env:
-          CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: aarch64-apple-darwin-gcc
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: clang
 
       - name: Prepare Asset
         shell: bash

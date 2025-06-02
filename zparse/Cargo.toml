@@ -10,7 +10,7 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
-clap = { version = "4.5.38", features = ["std", "derive", "help", "usage"] }
+clap = { version = "4.5.39", features = ["std", "derive", "help", "usage"] }
 tracing = "0.1.41"
 parking_lot = "0.12.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

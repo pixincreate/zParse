@@ -9,7 +9,7 @@ license-file.workspace = true
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4.9"
+libfuzzer-sys = "0.4.10"
 
 [dependencies.zparse]
 path = "../zparse"

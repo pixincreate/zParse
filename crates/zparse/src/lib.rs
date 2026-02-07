@@ -7,3 +7,6 @@ pub use error::{Error, ErrorKind, Pos, Result, Span};
 
 pub mod input;
 pub use input::Input;
+
+pub mod lexer;
+pub use lexer::{Token, TokenKind};

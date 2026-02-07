@@ -1,0 +1,30 @@
+# Rust build specifics
+/target
+**/*.rs.bk
+Cargo.lock
+
+# MacOS specific files
+.DS_Store
+
+# Proptest regression files
+**/*.proptest-regressions
+
+# Fuzzing artifacts
+fuzz/corpus
+fuzz/artifacts
+fuzz/target
+
+# Coverage files
+*.profraw
+*.profdata
+coverage/
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Node.js/Wrangler
+node_modules/
+dist/
+.wrangler/

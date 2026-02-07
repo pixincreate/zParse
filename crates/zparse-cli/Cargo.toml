@@ -1,0 +1,21 @@
+[package]
+name = "zparse-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "CLI tool for zparse library"
+
+[[bin]]
+name = "zparse"
+path = "src/main.rs"
+
+[dependencies]
+zparse = { path = "../zparse" }
+anyhow = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
+
+[lints.rust]
+unsafe_code = "forbid"

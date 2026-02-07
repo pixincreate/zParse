@@ -4,3 +4,6 @@
 
 pub mod error;
 pub use error::{Error, ErrorKind, Pos, Result, Span};
+
+pub mod input;
+pub use input::Input;

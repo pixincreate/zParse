@@ -55,6 +55,10 @@ pub enum ErrorKind {
     TrailingComma,
     MissingComma,
     DuplicateKey { key: String },
+    InvalidKey,
+    InvalidDatetime,
+    InvalidInlineTable,
+    InvalidArray,
     MaxDepthExceeded { max: u16 },
     MaxSizeExceeded { max: usize },
 }
@@ -73,6 +77,10 @@ impl fmt::Display for ErrorKind {
             Self::TrailingComma => write!(f, "trailing comma"),
             Self::MissingComma => write!(f, "missing comma"),
             Self::DuplicateKey { key } => write!(f, "duplicate key: {key}"),
+            Self::InvalidKey => write!(f, "invalid key"),
+            Self::InvalidDatetime => write!(f, "invalid datetime"),
+            Self::InvalidInlineTable => write!(f, "invalid inline table"),
+            Self::InvalidArray => write!(f, "invalid array"),
             Self::MaxDepthExceeded { max } => {
                 write!(f, "max depth exceeded: {max}")
             }

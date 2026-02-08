@@ -31,7 +31,9 @@ pub mod value;
 pub use value::{Array, Object, Value};
 
 pub mod json;
+pub mod toml;
 pub use json::{Config, Event, Parser};
+pub use toml::{Config as TomlConfig, Parser as TomlParser};
 
 /// Parse JSON from string
 pub fn from_str(s: &str) -> Result<Value> {
@@ -52,6 +54,24 @@ pub fn from_str_with_config(s: &str, config: Config) -> Result<Value> {
     let input = Input::from_str(s);
     let mut parser = Parser::with_config(input.as_bytes(), config);
     parser.parse_value()
+}
+
+/// Parse TOML from string
+pub fn from_toml_str(s: &str) -> Result<Value> {
+    let mut parser = TomlParser::new(s.as_bytes());
+    parser.parse()
+}
+
+/// Parse TOML from bytes
+pub fn from_toml_bytes(bytes: &[u8]) -> Result<Value> {
+    let mut parser = TomlParser::new(bytes);
+    parser.parse()
+}
+
+/// Parse TOML with custom configuration
+pub fn from_toml_str_with_config(s: &str, config: TomlConfig) -> Result<Value> {
+    let mut parser = TomlParser::with_config(s.as_bytes(), config);
+    parser.parse()
 }
 
 /// Convenience re-exports

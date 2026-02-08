@@ -1,0 +1,2 @@
+point = { x = 1, y = 2 }
+meta = { tags = ["one", "two"], ok = true }

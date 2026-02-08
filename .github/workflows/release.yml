@@ -54,8 +54,9 @@ jobs:
 
       - name: Update version in Cargo.toml
         run: |
-          sed -i.bak "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-          rm Cargo.toml.bak  # Clean up backup file
+          sed -i.bak -e "s/^version = .*/version = \"$VERSION\"/" \
+                     -e "/^zparse =/ s/\(version = \"\)[0-9]\+\.[0-9]\+\.[0-9]\+\(\".*\)/\1$VERSION\2/" Cargo.toml
+          rm Cargo.toml.bak
 
           echo "Updated version in Cargo.toml to $VERSION"
 

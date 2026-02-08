@@ -13,7 +13,7 @@ name = "zparse"
 path = "src/main.rs"
 
 [dependencies]
-zparse = { path = "../zparse" }
+zparse = { workspace = true }
 anyhow = { workspace = true }
 clap = { version = "4.5.57", features = ["derive"] }
 

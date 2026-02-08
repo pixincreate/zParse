@@ -10,3 +10,6 @@ pub use input::Input;
 
 pub mod lexer;
 pub use lexer::{Token, TokenKind};
+
+pub mod value;
+pub use value::{Array, Object, Value};

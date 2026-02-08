@@ -84,8 +84,8 @@ The following is a set of guidelines for contributing to zParse. These are mostl
 
    ```bash
    # Update your fork
-   git checkout main
-   git pull upstream main
+   git checkout master
+   git pull upstream master
 
    # Create feature branch
    git checkout -b feat/your-feature

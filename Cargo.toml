@@ -15,20 +15,20 @@ categories = ["command-line-utilities", "development-tools"]
 rust-version = "1.85"
 
 [workspace.dependencies]
-thiserror = "2.0"
+thiserror = "2.0.18"
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-proptest = "1.5"
-criterion = { version = "0.5", features = ["html_reports"] }
-bumpalo = "3.16"
-indexmap = "2.7"
-axum = "0.7"
-tokio = { version = "1.40", features = ["full"] }
+proptest = "1.10.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+bumpalo = "3.19.1"
+indexmap = "2.13.0"
+axum = "0.8.8"
+tokio = { version = "1.49.0", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-worker = "0.5"
+worker = "0.7.4"
 time = { version = "0.3", features = ["parsing", "formatting", "macros"] }
 
 [profile.release]

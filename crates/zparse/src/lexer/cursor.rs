@@ -174,6 +174,7 @@ mod tests {
         cursor.advance();
         cursor.advance();
         cursor.advance();
-        assert_eq!(cursor.slice_from(start), b"hel");
+        cursor.advance();
+        assert_eq!(cursor.slice_from(start), b"hell");
     }
 }

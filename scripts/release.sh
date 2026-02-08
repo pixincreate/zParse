@@ -20,8 +20,8 @@ usage() {
     echo "Example: $0 create_tag 1.0.0 --publish-crates"
 }
 
-PUBLISH_CRATES=false
 POSITIONAL=()
+PUBLISH_CRATES=false
 
 for arg in "$@"; do
     case "$arg" in
@@ -76,24 +76,6 @@ validate_changelog() {
     fi
 }
 
-# Bump the version in Cargo.toml
-bump_cargo() {
-    sed -i.bak '
-    /^\[workspace.package\]/,/^\[/ {
-      s/^version = ".*"/version = "'"$VERSION"'"/
-    }
-    ' Cargo.toml
-    grep -q "version = \"$VERSION\"" Cargo.toml || {
-      echo "Version update failed" >&2
-      exit 1
-    }
-    rm -f Cargo.toml.bak
-
-    git add Cargo.toml
-    git commit --message "chore: bump zParse to version $VERSION"
-    git push origin master
-}
-
 create_tag() {
     # Ensure we're on the master branch
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -111,9 +93,6 @@ create_tag() {
 
     # Validate changelog
     validate_changelog
-
-    # Bump the version in Cargo.toml
-    bump_cargo
 
     # Confirm with user
     echo "This will create and push tag v$VERSION, triggering the release workflow."

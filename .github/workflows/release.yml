@@ -73,12 +73,12 @@ jobs:
 
           echo "Updated CHANGELOG.md with new version $VERSION and date $DATE"
 
-      - name: Commit changes to main
+      - name: Commit changes to master
         id: commit-changes
         run: |
           git add Cargo.toml CHANGELOG.md
           git commit -m "release(zParse): version $VERSION [skip ci]"
-          git push origin HEAD:main
+          git push origin HEAD:master
           echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
   build-and-release:

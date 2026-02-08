@@ -4,8 +4,12 @@ use zparse::{convert, Format};
 fn test_json_to_toml() -> Result<(), Box<dyn std::error::Error>> {
     let input = r#"{"name":"test","value":42}"#;
     let output = convert(input, Format::Json, Format::Toml)?;
-    assert!(output.contains("name"));
-    assert!(output.contains("value"));
+    if !output.contains("name") {
+        return Err("missing name in toml output".into());
+    }
+    if !output.contains("value") {
+        return Err("missing value in toml output".into());
+    }
     Ok(())
 }
 
@@ -13,8 +17,12 @@ fn test_json_to_toml() -> Result<(), Box<dyn std::error::Error>> {
 fn test_toml_to_json() -> Result<(), Box<dyn std::error::Error>> {
     let input = "name = \"test\"\nvalue = 42\n";
     let output = convert(input, Format::Toml, Format::Json)?;
-    assert!(output.contains("\"name\""));
-    assert!(output.contains("\"value\""));
+    if !output.contains("\"name\"") {
+        return Err("missing name in json output".into());
+    }
+    if !output.contains("\"value\"") {
+        return Err("missing value in json output".into());
+    }
     Ok(())
 }
 
@@ -22,8 +30,12 @@ fn test_toml_to_json() -> Result<(), Box<dyn std::error::Error>> {
 fn test_yaml_to_json() -> Result<(), Box<dyn std::error::Error>> {
     let input = "name: test\nvalue: 42\n";
     let output = convert(input, Format::Yaml, Format::Json)?;
-    assert!(output.contains("\"name\""));
-    assert!(output.contains("\"value\""));
+    if !output.contains("\"name\"") {
+        return Err("missing name in json output".into());
+    }
+    if !output.contains("\"value\"") {
+        return Err("missing value in json output".into());
+    }
     Ok(())
 }
 
@@ -31,7 +43,11 @@ fn test_yaml_to_json() -> Result<(), Box<dyn std::error::Error>> {
 fn test_xml_to_json() -> Result<(), Box<dyn std::error::Error>> {
     let input = "<root><name>test</name><value>42</value></root>";
     let output = convert(input, Format::Xml, Format::Json)?;
-    assert!(output.contains("\"root\""));
-    assert!(output.contains("\"name\""));
+    if !output.contains("\"root\"") {
+        return Err("missing root in json output".into());
+    }
+    if !output.contains("\"name\"") {
+        return Err("missing name in json output".into());
+    }
     Ok(())
 }

@@ -16,6 +16,7 @@ serde = ["dep:serde"]
 thiserror = { workspace = true }
 serde = { workspace = true, optional = true }
 bumpalo = { workspace = true }
+time = { workspace = true }
 indexmap = { workspace = true }
 
 [dev-dependencies]

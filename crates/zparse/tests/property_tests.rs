@@ -38,6 +38,29 @@ fn serialize_value(value: &Value) -> String {
                 .collect();
             format!("{{{}}}", pairs.join(","))
         }
+        Value::Datetime(dt) => format!("\"{}\"", format_toml_datetime(dt)),
+    }
+}
+
+fn format_toml_datetime(dt: &zparse::TomlDatetime) -> String {
+    use time::format_description::well_known::Rfc3339;
+    use time::macros::format_description;
+
+    match dt {
+        zparse::TomlDatetime::OffsetDateTime(value) => value
+            .format(&Rfc3339)
+            .unwrap_or_else(|_| "1979-05-27T07:32:00Z".to_string()),
+        zparse::TomlDatetime::LocalDateTime(value) => value
+            .format(&format_description!(
+                "[year]-[month]-[day]T[hour]:[minute]:[second]"
+            ))
+            .unwrap_or_else(|_| "1979-05-27T07:32:00".to_string()),
+        zparse::TomlDatetime::LocalDate(value) => value
+            .format(&format_description!("[year]-[month]-[day]"))
+            .unwrap_or_else(|_| "1979-05-27".to_string()),
+        zparse::TomlDatetime::LocalTime(value) => value
+            .format(&format_description!("[hour]:[minute]:[second]"))
+            .unwrap_or_else(|_| "07:32:00".to_string()),
     }
 }
 

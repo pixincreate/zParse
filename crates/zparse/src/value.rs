@@ -3,6 +3,7 @@
 use indexmap::IndexMap;
 use indexmap::map::{IntoIter, Iter, Keys, Values};
 use std::ops::Index;
+use time::{Date, OffsetDateTime, PrimitiveDateTime, Time};
 
 /// A JSON/TOML/YAML/XML value
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -20,6 +21,17 @@ pub enum Value {
     Array(Array),
     /// Object (key-value pairs with order preservation)
     Object(Object),
+    /// TOML datetime value
+    Datetime(TomlDatetime),
+}
+
+/// TOML datetime values
+#[derive(Debug, Clone, PartialEq)]
+pub enum TomlDatetime {
+    OffsetDateTime(OffsetDateTime),
+    LocalDateTime(PrimitiveDateTime),
+    LocalDate(Date),
+    LocalTime(Time),
 }
 
 impl Value {
@@ -51,6 +63,11 @@ impl Value {
     /// Returns true if this value is an object
     pub fn is_object(&self) -> bool {
         matches!(self, Self::Object(_))
+    }
+
+    /// Returns true if this value is a TOML datetime
+    pub fn is_datetime(&self) -> bool {
+        matches!(self, Self::Datetime(_))
     }
 
     /// Returns the boolean value if this is a boolean, None otherwise
@@ -93,6 +110,14 @@ impl Value {
         }
     }
 
+    /// Returns the TOML datetime if this is a datetime, None otherwise
+    pub fn as_datetime(&self) -> Option<&TomlDatetime> {
+        match self {
+            Self::Datetime(dt) => Some(dt),
+            _ => None,
+        }
+    }
+
     /// Returns a mutable reference to the array if this is an array, None otherwise
     pub fn as_array_mut(&mut self) -> Option<&mut Array> {
         match self {
@@ -119,6 +144,12 @@ impl From<bool> for Value {
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Self::Number(value)
+    }
+}
+
+impl From<TomlDatetime> for Value {
+    fn from(value: TomlDatetime) -> Self {
+        Self::Datetime(value)
     }
 }
 

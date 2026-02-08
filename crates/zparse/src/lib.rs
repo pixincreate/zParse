@@ -28,12 +28,21 @@ pub mod lexer;
 pub use lexer::{Token, TokenKind};
 
 pub mod value;
-pub use value::{Array, Object, Value};
+pub use value::{Array, Object, TomlDatetime, Value};
+
+pub mod convert;
+pub use convert::{Format, convert};
 
 pub mod json;
 pub mod toml;
+pub mod xml;
+pub mod yaml;
 pub use json::{Config, Event, Parser};
 pub use toml::{Config as TomlConfig, Parser as TomlParser};
+pub use xml::{
+    Content as XmlContent, Document as XmlDocument, Element as XmlElement, Parser as XmlParser,
+};
+pub use yaml::{Config as YamlConfig, Parser as YamlParser};
 
 /// Parse JSON from string
 pub fn from_str(s: &str) -> Result<Value> {
@@ -74,6 +83,37 @@ pub fn from_toml_str_with_config(s: &str, config: TomlConfig) -> Result<Value> {
     parser.parse()
 }
 
+/// Parse YAML from string
+pub fn from_yaml_str(s: &str) -> Result<Value> {
+    let mut parser = YamlParser::new(s.as_bytes());
+    parser.parse()
+}
+
+/// Parse YAML from bytes
+pub fn from_yaml_bytes(bytes: &[u8]) -> Result<Value> {
+    let mut parser = YamlParser::new(bytes);
+    parser.parse()
+}
+
+/// Parse YAML with custom configuration
+pub fn from_yaml_str_with_config(s: &str, config: YamlConfig) -> Result<Value> {
+    let mut parser = YamlParser::with_config(s.as_bytes(), config);
+    parser.parse()
+}
+
+/// Parse XML from string
+pub fn from_xml_str(s: &str) -> Result<XmlDocument> {
+    let mut parser = XmlParser::new(s.as_bytes());
+    parser.parse()
+}
+
+/// Parse XML from bytes
+pub fn from_xml_bytes(bytes: &[u8]) -> Result<XmlDocument> {
+    let mut parser = XmlParser::new(bytes);
+    parser.parse()
+}
+
 /// Convenience re-exports
 pub use json::{Config as JsonConfig, Parser as JsonParser};
 pub use lexer::json::JsonLexer;
+pub use lexer::yaml::YamlLexer;

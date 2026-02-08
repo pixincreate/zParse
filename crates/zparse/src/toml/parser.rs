@@ -5,7 +5,10 @@ use std::collections::VecDeque;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::lexer::toml::{TomlLexer, TomlToken, TomlTokenKind};
 use crate::toml::event::Event;
-use crate::value::{Array, Object, Value};
+use crate::value::{Array, Object, TomlDatetime, Value};
+use time::format_description::well_known::Rfc3339;
+use time::macros::format_description;
+use time::{Date, OffsetDateTime, PrimitiveDateTime, Time};
 
 /// Configuration for the TOML parser
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -269,7 +272,10 @@ impl<'a> Parser<'a> {
             TomlTokenKind::Integer(value) => Ok(Value::from(value)),
             TomlTokenKind::Float(value) => Ok(Value::Number(value)),
             TomlTokenKind::Bool(value) => Ok(Value::Bool(value)),
-            TomlTokenKind::Datetime(value) => Ok(Value::String(value)),
+            TomlTokenKind::Datetime(value) => {
+                let datetime = parse_toml_datetime(&value)?;
+                Ok(Value::Datetime(datetime))
+            }
             TomlTokenKind::LeftBracket => self.parse_array(),
             TomlTokenKind::LeftBrace => self.parse_inline_table(),
             _ => Err(Error::with_message(
@@ -479,6 +485,52 @@ impl<'a> Parser<'a> {
             insert_dotted_key_into(table, key, value)
         }
     }
+}
+
+fn parse_toml_datetime(value: &str) -> Result<TomlDatetime> {
+    if let Ok(datetime) = OffsetDateTime::parse(value, &Rfc3339) {
+        return Ok(TomlDatetime::OffsetDateTime(datetime));
+    }
+
+    let local_datetime = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+    let local_datetime_frac =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+    let local_datetime_space = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+    let local_datetime_space_frac =
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]");
+
+    if let Ok(datetime) = PrimitiveDateTime::parse(value, &local_datetime) {
+        return Ok(TomlDatetime::LocalDateTime(datetime));
+    }
+    if let Ok(datetime) = PrimitiveDateTime::parse(value, &local_datetime_frac) {
+        return Ok(TomlDatetime::LocalDateTime(datetime));
+    }
+    if let Ok(datetime) = PrimitiveDateTime::parse(value, &local_datetime_space) {
+        return Ok(TomlDatetime::LocalDateTime(datetime));
+    }
+    if let Ok(datetime) = PrimitiveDateTime::parse(value, &local_datetime_space_frac) {
+        return Ok(TomlDatetime::LocalDateTime(datetime));
+    }
+
+    let local_date = format_description!("[year]-[month]-[day]");
+    if let Ok(date) = Date::parse(value, &local_date) {
+        return Ok(TomlDatetime::LocalDate(date));
+    }
+
+    let local_time = format_description!("[hour]:[minute]:[second]");
+    let local_time_frac = format_description!("[hour]:[minute]:[second].[subsecond]");
+    if let Ok(time) = Time::parse(value, &local_time) {
+        return Ok(TomlDatetime::LocalTime(time));
+    }
+    if let Ok(time) = Time::parse(value, &local_time_frac) {
+        return Ok(TomlDatetime::LocalTime(time));
+    }
+
+    Err(Error::with_message(
+        ErrorKind::InvalidDatetime,
+        Span::empty(),
+        "invalid datetime".to_string(),
+    ))
 }
 
 fn ensure_table_path<'a>(root: &'a mut Object, path: &[String]) -> Result<&'a mut Object> {
@@ -909,6 +961,85 @@ mod tests {
                     ));
                 }
             }
+        } else {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "expected object".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_datetime_values() -> Result<()> {
+        let input = b"offset = 1979-05-27T07:32:00Z\nlocal_dt = 1979-05-27T07:32:00\nlocal_date = 1979-05-27\nlocal_time = 07:32:00\n";
+        let mut parser = Parser::new(input);
+        let value = parser.parse()?;
+
+        if let Value::Object(obj) = value {
+            let offset = obj.get("offset");
+            let expected_offset =
+                OffsetDateTime::parse("1979-05-27T07:32:00Z", &Rfc3339).map_err(|_| {
+                    Error::with_message(
+                        ErrorKind::InvalidDatetime,
+                        Span::empty(),
+                        "failed to parse offset datetime".to_string(),
+                    )
+                })?;
+            ensure_eq(
+                offset,
+                Some(&Value::Datetime(TomlDatetime::OffsetDateTime(
+                    expected_offset,
+                ))),
+            )?;
+
+            let local_dt = PrimitiveDateTime::parse(
+                "1979-05-27T07:32:00",
+                &format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]"),
+            )
+            .map_err(|_| {
+                Error::with_message(
+                    ErrorKind::InvalidDatetime,
+                    Span::empty(),
+                    "failed to parse local datetime".to_string(),
+                )
+            })?;
+            ensure_eq(
+                obj.get("local_dt"),
+                Some(&Value::Datetime(TomlDatetime::LocalDateTime(local_dt))),
+            )?;
+
+            let local_date =
+                Date::parse("1979-05-27", &format_description!("[year]-[month]-[day]")).map_err(
+                    |_| {
+                        Error::with_message(
+                            ErrorKind::InvalidDatetime,
+                            Span::empty(),
+                            "failed to parse local date".to_string(),
+                        )
+                    },
+                )?;
+            ensure_eq(
+                obj.get("local_date"),
+                Some(&Value::Datetime(TomlDatetime::LocalDate(local_date))),
+            )?;
+
+            let local_time =
+                Time::parse("07:32:00", &format_description!("[hour]:[minute]:[second]")).map_err(
+                    |_| {
+                        Error::with_message(
+                            ErrorKind::InvalidDatetime,
+                            Span::empty(),
+                            "failed to parse local time".to_string(),
+                        )
+                    },
+                )?;
+            ensure_eq(
+                obj.get("local_time"),
+                Some(&Value::Datetime(TomlDatetime::LocalTime(local_time))),
+            )?;
         } else {
             return Err(Error::with_message(
                 ErrorKind::InvalidToken,

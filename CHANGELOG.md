@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-02-09
+
+### Chore
+
+- Add README metadata for crates.io
+- Prevent publishing zparse-api to crates.io
+
 ## [2.0.0] - 2026-02-08
 
 ### Feat

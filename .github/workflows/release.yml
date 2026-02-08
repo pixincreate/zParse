@@ -52,35 +52,9 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Processing version: $VERSION"
 
-      - name: Update version in Cargo.toml
-        run: |
-          sed -i.bak -e "s/^version = .*/version = \"$VERSION\"/" \
-                     -e "/^zparse =/ s/\(version = \"\)[0-9]\+\.[0-9]\+\.[0-9]\+\(\".*\)/\1$VERSION\2/" Cargo.toml
-          rm Cargo.toml.bak
-
-          echo "Updated version in Cargo.toml to $VERSION"
-
-      - name: Update CHANGELOG.md
-        run: |
-          DATE=$(date +%Y-%m-%d)
-
-          # Verify CHANGELOG.md has expected format
-          if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md doesn't contain expected '## [Unreleased]' section"
-            exit 1
-          fi
-
-          sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
-          rm CHANGELOG.md.bak  # Clean up backup file
-
-          echo "Updated CHANGELOG.md with new version $VERSION and date $DATE"
-
-      - name: Commit changes to master
+      - name: Capture commit SHA
         id: commit-changes
         run: |
-          git add Cargo.toml CHANGELOG.md
-          git commit -m "release(zParse): version $VERSION [skip ci]"
-          git push origin HEAD:master
           echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
   build-and-release:

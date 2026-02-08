@@ -76,6 +76,24 @@ validate_changelog() {
     fi
 }
 
+update_version_files() {
+    DATE=$(date +%Y-%m-%d)
+
+    if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
+        echo "Error: CHANGELOG.md doesn't contain expected '## [Unreleased]' section"
+        exit 1
+    fi
+
+    sed -i.bak -e "s/^version = .*/version = \"$VERSION\"/" \
+               -e "/^zparse =/ s/\(version = \"\)[0-9]\+\.[0-9]\+\.[0-9]\+\(\".*\)/\1$VERSION\2/" Cargo.toml
+    rm Cargo.toml.bak
+
+    sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
+    rm CHANGELOG.md.bak
+
+    echo "Updated version to $VERSION in Cargo.toml and CHANGELOG.md"
+}
+
 create_tag() {
     # Ensure we're on the master branch
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -103,13 +121,20 @@ create_tag() {
         exit 0
     fi
 
+    update_version_files
+
+    git add Cargo.toml CHANGELOG.md
+    git commit -m "release(zParse): version $VERSION [skip ci]"
+    git push origin HEAD:master
+
     echo "Creating tag v$VERSION..."
     git tag -a "v$VERSION" --message "zParse v$VERSION"
     git push origin "v$VERSION"
 
     if [[ "$PUBLISH_CRATES" == "true" ]]; then
         echo "Publishing to crates.io..."
-        cargo publish
+        cargo publish -p zparse
+        cargo publish -p zparse-cli
         echo "Publish to crates.io complete."
     fi
 

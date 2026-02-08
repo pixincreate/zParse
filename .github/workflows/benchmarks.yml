@@ -1,0 +1,25 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0" # Run weekly
+
+jobs:
+  benchmark:
+    name: cargo-bench
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: bash scripts/benchmark.sh

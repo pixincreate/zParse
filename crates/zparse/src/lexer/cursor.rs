@@ -23,6 +23,8 @@ impl<'a> Cursor<'a> {
     }
 
     /// Get current byte without consuming
+    #[allow(clippy::indexing_slicing)]
+    // SAFETY: Bounds checked in condition
     pub const fn current(&self) -> Option<u8> {
         if self.pos < self.input.len() {
             Some(self.input[self.pos])
@@ -32,12 +34,36 @@ impl<'a> Cursor<'a> {
     }
 
     /// Peek at byte ahead without consuming
+    #[allow(clippy::indexing_slicing)]
+    // SAFETY: Bounds checked in condition
     pub const fn peek(&self, ahead: usize) -> Option<u8> {
         let idx = self.pos.saturating_add(ahead);
         if idx < self.input.len() {
             Some(self.input[idx])
         } else {
             None
+        }
+    }
+
+    /// Peek at n bytes ahead without consuming
+    #[allow(clippy::indexing_slicing)]
+    // SAFETY: Bounds checked in condition
+    pub fn peek_bytes(&self, n: usize) -> Option<&[u8]> {
+        let end = self.pos.saturating_add(n);
+        if end <= self.input.len() {
+            Some(&self.input[self.pos..end])
+        } else {
+            None
+        }
+    }
+
+    /// Advance cursor by n bytes
+    pub fn advance_by(&mut self, n: usize) {
+        for _ in 0..n {
+            if self.is_eof() {
+                break;
+            }
+            self.advance();
         }
     }
 
@@ -86,6 +112,8 @@ impl<'a> Cursor<'a> {
     }
 
     /// Get remaining bytes
+    #[allow(clippy::indexing_slicing)]
+    // SAFETY: Bounds checked - pos is always <= input.len()
     pub fn remaining(&self) -> &[u8] {
         &self.input[self.pos..]
     }
@@ -96,6 +124,8 @@ impl<'a> Cursor<'a> {
     }
 
     /// Get slice from start to current position
+    #[allow(clippy::indexing_slicing)]
+    // SAFETY: Bounds checked - start is expected to be a valid position <= pos <= input.len()
     pub fn slice_from(&self, start: usize) -> &'a [u8] {
         &self.input[start..self.pos]
     }

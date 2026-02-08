@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-02-08
+
 ### Feat
 
 - Rewrite core library with unified JSON/TOML/YAML/XML parsing

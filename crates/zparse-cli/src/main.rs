@@ -8,7 +8,8 @@ use clap::{Parser, ValueEnum};
 #[command(
     name = "zparse",
     version,
-    about = "Parse and convert JSON/TOML/YAML/XML"
+    about = "Parse and convert JSON/TOML/YAML/XML",
+    after_help = "Examples:\n  zparse --from json --to toml input.json\n  zparse --to yaml input.toml\n  cat input.xml | zparse --from xml --to json"
 )]
 struct Args {
     /// Input file (defaults to stdin)

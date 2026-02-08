@@ -8,7 +8,7 @@
 - Add native TOML datetime types (offset/local date-time/date/time)
 - Add XML parser with attributes, entities, and nested elements
 - Add cross-format conversion API for JSON/TOML/YAML/XML
-- Add CLI conversion tool with format inference and permissive JSON flags
+- Add CLI parsing and conversion tool with format inference and permissive JSON flags
 - Add Axum API server with parse/convert endpoints
 
 ### Improved

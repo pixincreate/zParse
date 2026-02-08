@@ -30,6 +30,9 @@ pub use lexer::{Token, TokenKind};
 pub mod value;
 pub use value::{Array, Object, TomlDatetime, Value};
 
+pub mod convert;
+pub use convert::{convert, Format};
+
 pub mod json;
 pub mod toml;
 pub mod xml;

@@ -1,0 +1,5 @@
+person:
+  name: Jane
+  skills:
+    - rust
+    - yaml

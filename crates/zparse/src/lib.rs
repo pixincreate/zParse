@@ -13,3 +13,6 @@ pub use lexer::{Token, TokenKind};
 
 pub mod value;
 pub use value::{Array, Object, Value};
+
+pub mod json;
+pub use json::{Config, Event, Parser};

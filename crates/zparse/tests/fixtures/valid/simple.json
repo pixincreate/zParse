@@ -1,15 +1,1 @@
-{
-  "name": "simple",
-  "version": 1,
-  "active": true,
-  "data": null,
-  "count": 42,
-  "ratio": 3.14,
-  "items": [1, 2, 3],
-  "nested": {
-    "key": "value",
-    "empty": ""
-  },
-  "escaped": "Hello\nWorld\t!",
-  "unicode": "\u0048\u0065\u006c\u006c\u006f"
-}
+{"name": "test", "value": 42}

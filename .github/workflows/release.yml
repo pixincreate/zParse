@@ -1,0 +1,225 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_NAME: "zparse"
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.commit-changes.outputs.commit_sha }}
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.NERDY_ID }}
+          private-key: ${{ secrets.NERDY_SECRET }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Extract version from tag
+        id: get-version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
+            echo "::error::Invalid version format: $VERSION. Expected semantic versioning (e.g., 1.2.3 or 1.2.3-alpha.1)"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Processing version: $VERSION"
+
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i.bak "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          rm Cargo.toml.bak  # Clean up backup file
+
+          echo "Updated version in Cargo.toml to $VERSION"
+
+      - name: Update CHANGELOG.md
+        run: |
+          DATE=$(date +%Y-%m-%d)
+
+          # Verify CHANGELOG.md has expected format
+          if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md doesn't contain expected '## [Unreleased]' section"
+            exit 1
+          fi
+
+          sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
+          rm CHANGELOG.md.bak  # Clean up backup file
+
+          echo "Updated CHANGELOG.md with new version $VERSION and date $DATE"
+
+      - name: Commit changes to main
+        id: commit-changes
+        run: |
+          git add Cargo.toml CHANGELOG.md
+          git commit -m "release(zParse): version $VERSION [skip ci]"
+          git push origin HEAD:main
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  build-and-release:
+    needs: prepare-release
+    name: release-${{ matrix.platform.asset_name }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_name: linux
+            arch: x86_64
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset_name: darwin
+            arch: x86_64
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: darwin
+            arch: aarch64
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: windows
+            arch: x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare-release.outputs.commit_sha }}
+
+      - name: Set binary name
+        id: binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
+            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}.exe" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract Release Notes
+        id: release-notes
+        if: matrix.platform.os == 'ubuntu-latest'
+        run: |
+          VERSION=${needs.prepare-release.outputs.version}
+          NOTES=$(awk -v ver="$VERSION" '
+            /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
+            p { print }
+          ' CHANGELOG.md)
+
+          ADDITIONAL_INFO="
+
+          ---
+
+          See [\`README.md\`](./README.md) for information on how to install and use ${{ env.PROJECT_NAME }}.
+
+          The downloads are digitally signed. Please consider [verifying the downloads](./README.md#verifying-downloads)."
+
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "$ADDITIONAL_INFO" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      # Add cross-compilation support
+      - name: Install cross-compilation tools
+        if: matrix.platform.target == 'aarch64-apple-darwin'
+        run: |
+          brew install FiloSottile/musl-cross/musl-cross
+          rustup target add aarch64-apple-darwin
+
+      # Build the specific package
+      - name: Build Binary
+        run: |
+          cargo build --release --target ${{ matrix.platform.target }} -p ${{ env.PROJECT_NAME }}
+        env:
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: aarch64-apple-darwin-gcc
+
+      - name: Prepare Asset
+        shell: bash
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.platform.target }}/release/${{ env.PROJECT_NAME }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
+            release/${{ steps.binary.outputs.name }}
+
+      - name: Smoke test binary
+        shell: bash
+        run: |
+          ./release/${{ steps.binary.outputs.name }} --help || ./release/${{ steps.binary.outputs.name }} -h || true
+
+          # Verify binary exists and has proper permissions
+          if [ ! -f "release/${{ steps.binary.outputs.name }}" ]; then
+            echo "::error::Binary not found after build"
+            exit 1
+          fi
+
+          if [ "${{ matrix.platform.os }}" != "windows-latest" ]; then
+            chmod +x "release/${{ steps.binary.outputs.name }}"
+          fi
+
+      # Create checksum
+      - name: Generate SHA-256
+        run: |
+          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
+            certutil -hashfile release/${{ steps.binary.outputs.name }} SHA256 | grep -v "hash" > release/${{ steps.binary.outputs.name }}.sha256
+          else
+            shasum -a 256 release/${{ steps.binary.outputs.name }} > release/${{ steps.binary.outputs.name }}.sha256
+          fi
+
+      # Sign the artifacts
+      - name: Sign artifacts
+        env:
+          SSH_KEY: ${{ secrets.SSH_SIGNING_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_signing
+          chmod 600 ~/.ssh/id_signing
+          cd release
+          ssh-keygen -Y sign -f ~/.ssh/id_signing -n file "${{ steps.binary.outputs.name }}"
+          rm ~/.ssh/id_signing
+
+      # Create Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "zParse ${{ github.ref_name }}"
+          files: |
+            release/${{ steps.binary.outputs.name }}
+            release/${{ steps.binary.outputs.name }}.sha256
+            release/${{ steps.binary.outputs.name }}.sig
+          body: ${{ steps.release-notes.outputs.NOTES }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

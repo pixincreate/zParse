@@ -13,6 +13,10 @@ pub struct Config {
     pub max_depth: u16,
     /// Maximum input size in bytes (0 means unlimited)
     pub max_size: usize,
+    /// Allow JavaScript-style comments
+    pub allow_comments: bool,
+    /// Allow trailing commas in objects and arrays
+    pub allow_trailing_commas: bool,
 }
 
 impl Default for Config {
@@ -20,6 +24,8 @@ impl Default for Config {
         Self {
             max_depth: 128,
             max_size: 10 * 1024 * 1024, // 10 MB default
+            allow_comments: false,
+            allow_trailing_commas: false,
         }
     }
 }
@@ -30,6 +36,8 @@ impl Config {
         Self {
             max_depth: 0,
             max_size: 0,
+            allow_comments: false,
+            allow_trailing_commas: false,
         }
     }
 
@@ -38,7 +46,21 @@ impl Config {
         Self {
             max_depth,
             max_size,
+            allow_comments: false,
+            allow_trailing_commas: false,
         }
+    }
+
+    /// Enable or disable comment support
+    pub const fn with_comments(mut self, allow: bool) -> Self {
+        self.allow_comments = allow;
+        self
+    }
+
+    /// Enable or disable trailing comma support
+    pub const fn with_trailing_commas(mut self, allow: bool) -> Self {
+        self.allow_trailing_commas = allow;
+        self
     }
 }
 
@@ -66,6 +88,8 @@ pub struct Parser<'a> {
     expecting_value: bool,
     /// Whether we're in the first element of a container
     is_first_element: bool,
+    /// Whether we just consumed a comma and expect a key
+    expecting_key: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -77,7 +101,7 @@ impl<'a> Parser<'a> {
     /// Create a new parser with custom configuration
     pub fn with_config(input: &'a [u8], config: Config) -> Self {
         Self {
-            lexer: JsonLexer::new(input),
+            lexer: JsonLexer::with_options(input, config.allow_comments),
             config,
             depth: 0,
             bytes_parsed: 0,
@@ -85,6 +109,7 @@ impl<'a> Parser<'a> {
             expecting_colon_after_key: false,
             expecting_value: false,
             is_first_element: true,
+            expecting_key: false,
         }
     }
 
@@ -260,6 +285,23 @@ impl<'a> Parser<'a> {
     }
 
     fn handle_in_object(&mut self, token: Token) -> Result<Option<Event>> {
+        if self.expecting_key {
+            match token.kind {
+                TokenKind::RightBrace if self.config.allow_trailing_commas => {
+                    self.expecting_key = false;
+                    self.pop_context();
+                    return Ok(Some(Event::ObjectEnd));
+                }
+                TokenKind::String(s) => {
+                    self.expecting_key = false;
+                    self.is_first_element = false;
+                    self.expecting_colon_after_key = true;
+                    return Ok(Some(Event::Key(s)));
+                }
+                _ => return Err(self.expected_error("string key", &token)),
+            }
+        }
+
         // Handle colon after key
         if self.expecting_colon_after_key {
             match token.kind {
@@ -295,6 +337,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Comma if !self.is_first_element && !self.expecting_colon_after_key => {
                 // Comma is valid here, continue to next token
+                self.expecting_key = true;
                 self.next_event()
             }
             _ => {
@@ -310,6 +353,13 @@ impl<'a> Parser<'a> {
     fn handle_in_array(&mut self, token: Token) -> Result<Option<Event>> {
         match token.kind {
             TokenKind::RightBracket if !self.expecting_value => {
+                self.pop_context();
+                Ok(Some(Event::ArrayEnd))
+            }
+            TokenKind::RightBracket
+                if self.expecting_value && self.config.allow_trailing_commas =>
+            {
+                self.expecting_value = false;
                 self.pop_context();
                 Ok(Some(Event::ArrayEnd))
             }
@@ -335,6 +385,7 @@ impl<'a> Parser<'a> {
                 self.is_first_element = true;
                 self.expecting_colon_after_key = false;
                 self.expecting_value = false;
+                self.expecting_key = false;
                 Ok(Some(Event::ObjectStart))
             }
             TokenKind::LeftBracket => {
@@ -343,6 +394,7 @@ impl<'a> Parser<'a> {
                 self.is_first_element = true;
                 self.expecting_colon_after_key = false;
                 self.expecting_value = false;
+                self.expecting_key = false;
                 Ok(Some(Event::ArrayStart))
             }
             TokenKind::Null => {
@@ -397,6 +449,7 @@ impl<'a> Parser<'a> {
             self.is_first_element = false;
             self.expecting_colon_after_key = false;
             self.expecting_value = false;
+            self.expecting_key = false;
         }
     }
 
@@ -453,6 +506,8 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.max_depth, 128);
         assert_eq!(config.max_size, 10 * 1024 * 1024);
+        assert!(!config.allow_comments);
+        assert!(!config.allow_trailing_commas);
     }
 
     #[test]
@@ -460,6 +515,8 @@ mod tests {
         let config = Config::unlimited();
         assert_eq!(config.max_depth, 0);
         assert_eq!(config.max_size, 0);
+        assert!(!config.allow_comments);
+        assert!(!config.allow_trailing_commas);
     }
 
     #[test]
@@ -467,6 +524,51 @@ mod tests {
         let config = Config::new(64, 1024);
         assert_eq!(config.max_depth, 64);
         assert_eq!(config.max_size, 1024);
+        assert!(!config.allow_comments);
+        assert!(!config.allow_trailing_commas);
+    }
+
+    #[test]
+    fn test_comments_allowed() -> Result<()> {
+        let input = b"// comment\n{\"a\": 1, /* inline */ \"b\": 2}\n";
+        let config = Config::default().with_comments(true);
+        let mut parser = Parser::with_config(input, config);
+        let value = parser.parse_value()?;
+        if let Value::Object(obj) = value {
+            ensure_eq(obj.get("a"), Some(&Value::Number(1.0)))?;
+            ensure_eq(obj.get("b"), Some(&Value::Number(2.0)))?;
+        } else {
+            return fail("expected object".to_string());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_trailing_comma_allowed() -> Result<()> {
+        let input = b"{\"a\": 1,}\n";
+        let config = Config::default().with_trailing_commas(true);
+        let mut parser = Parser::with_config(input, config);
+        let value = parser.parse_value()?;
+        if let Value::Object(obj) = value {
+            ensure_eq(obj.get("a"), Some(&Value::Number(1.0)))?;
+        } else {
+            return fail("expected object".to_string());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_trailing_comma_allowed_array() -> Result<()> {
+        let input = b"[1, 2,]\n";
+        let config = Config::default().with_trailing_commas(true);
+        let mut parser = Parser::with_config(input, config);
+        let value = parser.parse_value()?;
+        if let Value::Array(arr) = value {
+            ensure_eq(arr.len(), 2)?;
+        } else {
+            return fail("expected array".to_string());
+        }
+        Ok(())
     }
 
     #[test]

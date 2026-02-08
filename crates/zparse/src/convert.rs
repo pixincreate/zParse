@@ -1,7 +1,7 @@
 //! Format conversion utilities
 
 use crate::error::{Error, ErrorKind, Result, Span};
-use crate::json::Parser as JsonParser;
+use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;
 use crate::value::{Object, TomlDatetime, Value};
 use crate::xml::model::{Content as XmlContent, Document as XmlDocument, Element as XmlElement};
@@ -17,8 +17,24 @@ pub enum Format {
     Xml,
 }
 
+/// Conversion options per format
+#[derive(Clone, Debug, Default)]
+pub struct ConvertOptions {
+    pub json: JsonConfig,
+}
+
 /// Convert between supported formats
 pub fn convert(input: &str, from: Format, to: Format) -> Result<String> {
+    convert_with_options(input, from, to, &ConvertOptions::default())
+}
+
+/// Convert between supported formats with options
+pub fn convert_with_options(
+    input: &str,
+    from: Format,
+    to: Format,
+    options: &ConvertOptions,
+) -> Result<String> {
     if from == to {
         return Ok(input.to_string());
     }
@@ -31,21 +47,21 @@ pub fn convert(input: &str, from: Format, to: Format) -> Result<String> {
             serialize_value(&value, to)
         }
         (_, Format::Xml) => {
-            let value = parse_value(input, from)?;
+            let value = parse_value(input, from, options)?;
             let doc = value_to_xml(&value);
             Ok(serialize_xml(&doc))
         }
         _ => {
-            let value = parse_value(input, from)?;
+            let value = parse_value(input, from, options)?;
             serialize_value(&value, to)
         }
     }
 }
 
-fn parse_value(input: &str, format: Format) -> Result<Value> {
+fn parse_value(input: &str, format: Format, options: &ConvertOptions) -> Result<Value> {
     match format {
         Format::Json => {
-            let mut parser = JsonParser::new(input.as_bytes());
+            let mut parser = JsonParser::with_config(input.as_bytes(), options.json);
             parser.parse_value()
         }
         Format::Toml => {

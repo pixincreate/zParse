@@ -31,7 +31,7 @@ pub mod value;
 pub use value::{Array, Object, TomlDatetime, Value};
 
 pub mod convert;
-pub use convert::{convert, Format};
+pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 
 pub mod json;
 pub mod toml;

@@ -8,6 +8,7 @@ use crate::lexer::token::{Token, TokenKind};
 #[derive(Clone, Debug)]
 pub struct JsonLexer<'a> {
     cursor: Cursor<'a>,
+    allow_comments: bool,
 }
 
 impl<'a> JsonLexer<'a> {
@@ -15,12 +16,21 @@ impl<'a> JsonLexer<'a> {
     pub const fn new(input: &'a [u8]) -> Self {
         Self {
             cursor: Cursor::new(input),
+            allow_comments: false,
+        }
+    }
+
+    /// Create a new JSON lexer with options
+    pub const fn with_options(input: &'a [u8], allow_comments: bool) -> Self {
+        Self {
+            cursor: Cursor::new(input),
+            allow_comments,
         }
     }
 
     /// Get the next token from the input
     pub fn next_token(&mut self) -> Result<Token> {
-        self.cursor.skip_whitespace();
+        self.skip_ignorable()?;
 
         let start = self.cursor.position();
 
@@ -56,6 +66,10 @@ impl<'a> JsonLexer<'a> {
                 b't' => self.lex_true()?,
                 b'f' => self.lex_false()?,
                 b'-' | b'0'..=b'9' => self.lex_number()?,
+                b'/' if self.allow_comments => {
+                    self.skip_comment()?;
+                    return self.next_token();
+                }
                 _ => {
                     return Err(Error::at(
                         ErrorKind::InvalidToken,
@@ -149,6 +163,60 @@ impl<'a> JsonLexer<'a> {
         }
 
         Ok(TokenKind::String(result))
+    }
+
+    fn skip_ignorable(&mut self) -> Result<()> {
+        loop {
+            self.cursor.skip_whitespace();
+            if self.allow_comments && self.cursor.current() == Some(b'/') {
+                match self.cursor.peek(1) {
+                    Some(b'/') | Some(b'*') => {
+                        self.skip_comment()?;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+            break;
+        }
+        Ok(())
+    }
+
+    fn skip_comment(&mut self) -> Result<()> {
+        match self.cursor.peek(1) {
+            Some(b'/') => {
+                self.cursor.advance_by(2);
+                while let Some(b) = self.cursor.current() {
+                    self.cursor.advance();
+                    if b == b'\n' {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+            Some(b'*') => {
+                self.cursor.advance_by(2);
+                while self.cursor.current().is_some() {
+                    if self.cursor.peek_bytes(2) == Some(b"*/") {
+                        self.cursor.advance_by(2);
+                        return Ok(());
+                    }
+                    self.cursor.advance();
+                }
+                Err(Error::at(
+                    ErrorKind::InvalidToken,
+                    self.cursor.position().offset,
+                    self.cursor.position().line,
+                    self.cursor.position().col,
+                ))
+            }
+            _ => Err(Error::at(
+                ErrorKind::InvalidToken,
+                self.cursor.position().offset,
+                self.cursor.position().line,
+                self.cursor.position().col,
+            )),
+        }
     }
 
     /// Lex a unicode escape sequence (\uXXXX)

@@ -1,7 +1,7 @@
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, ValueEnum};
 
 #[derive(Debug, Parser)]
@@ -24,6 +24,12 @@ struct Args {
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
+    /// Allow JSON comments (// and /* */)
+    #[arg(long)]
+    json_comments: bool,
+    /// Allow trailing commas in JSON
+    #[arg(long)]
+    json_trailing_commas: bool,
 }
 
 #[derive(Clone, Debug, ValueEnum)]
@@ -59,7 +65,11 @@ fn main() -> Result<()> {
         }
     };
 
-    let output = zparse::convert(&input_data, from.into(), args.to.into())?;
+    let json_config = zparse::JsonConfig::default()
+        .with_comments(args.json_comments)
+        .with_trailing_commas(args.json_trailing_commas);
+    let options = zparse::ConvertOptions { json: json_config };
+    let output = zparse::convert_with_options(&input_data, from.into(), args.to.into(), &options)?;
 
     write_output(&args.output, output.as_bytes())?;
     Ok(())

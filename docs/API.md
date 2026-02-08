@@ -28,6 +28,10 @@ Request body:
 {"content":"...","format":"json"}
 ```
 
+Notes:
+- JSON is strict by default (no comments, no trailing commas).
+- Use the CLI for permissive JSON parsing when needed.
+
 Response (success):
 ```json
 {"status":"ok","data":{}}

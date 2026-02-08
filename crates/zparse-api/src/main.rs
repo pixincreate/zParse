@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use axum::{routing::get, routing::post, Json, Router};
+use axum::{Json, Router, routing::get, routing::post};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -57,7 +57,12 @@ async fn main() {
         .route("/api/formats", get(formats))
         .route("/api/parse", post(parse))
         .route("/api/convert", post(convert))
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any));
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     let host = std::env::var("ZPARSE_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("ZPARSE_PORT").unwrap_or_else(|_| "3000".to_string());

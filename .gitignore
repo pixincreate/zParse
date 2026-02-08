@@ -28,3 +28,8 @@ coverage/
 node_modules/
 dist/
 .wrangler/
+docs/
+
+# Environment variables
+.envrc
+.env

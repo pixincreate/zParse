@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-use zparse::{convert, Format};
+use zparse::{Format, convert};
 
 const JSON_INPUT: &str = r#"{"name": "test", "value": 42}"#;
 const TOML_INPUT: &str = "name = \"test\"\nvalue = 42\n";

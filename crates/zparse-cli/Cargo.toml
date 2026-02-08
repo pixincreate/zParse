@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 zparse = { path = "../zparse" }
 anyhow = { workspace = true }
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.5.57", features = ["derive"] }
 
 [lints.rust]
 unsafe_code = "forbid"

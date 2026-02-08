@@ -8,7 +8,8 @@ permissions:
   contents: write
 
 env:
-  PROJECT_NAME: "zparse"
+  BINARY_NAME: "zparse"
+  PACKAGE_NAME: "zparse-cli"
 
 jobs:
   prepare-release:
@@ -30,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Configure Git
         run: |
@@ -120,16 +121,17 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}.exe" >> $GITHUB_OUTPUT
+            echo "name=${{ env.BINARY_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}.exe" >> $GITHUB_OUTPUT
           else
-            echo "name=${{ env.PROJECT_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}" >> $GITHUB_OUTPUT
+            echo "name=${{ env.BINARY_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Extract Release Notes
         id: release-notes
         if: matrix.platform.os == 'ubuntu-latest'
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          VERSION=${needs.prepare-release.outputs.version}
           NOTES=$(awk -v ver="$VERSION" '
             /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
             p { print }
@@ -139,7 +141,7 @@ jobs:
 
           ---
 
-          See [\`README.md\`](./README.md) for information on how to install and use ${{ env.PROJECT_NAME }}.
+          See [\`README.md\`](./README.md) for information on how to install and use ${BINARY_NAME}.
 
           The downloads are digitally signed. Please consider [verifying the downloads](./README.md#verifying-downloads)."
 
@@ -152,25 +154,21 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
-      # Add cross-compilation support
-      - name: Install cross-compilation tools
+      - name: Ensure target is installed
         if: matrix.platform.target == 'aarch64-apple-darwin'
         run: |
-          brew install FiloSottile/musl-cross/musl-cross
           rustup target add aarch64-apple-darwin
 
       # Build the specific package
       - name: Build Binary
         run: |
-          cargo build --release --target ${{ matrix.platform.target }} -p ${{ env.PROJECT_NAME }}
-        env:
-          CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: aarch64-apple-darwin-gcc
+          cargo build --release --target ${{ matrix.platform.target }} -p ${{ env.PACKAGE_NAME }} --bin ${{ env.BINARY_NAME }}
 
       - name: Prepare Asset
         shell: bash
         run: |
           mkdir -p release
-          cp target/${{ matrix.platform.target }}/release/${{ env.PROJECT_NAME }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
+          cp target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
             release/${{ steps.binary.outputs.name }}
 
       - name: Smoke test binary
@@ -190,6 +188,7 @@ jobs:
 
       # Create checksum
       - name: Generate SHA-256
+        shell: bash
         run: |
           if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
             certutil -hashfile release/${{ steps.binary.outputs.name }} SHA256 | grep -v "hash" > release/${{ steps.binary.outputs.name }}.sha256
@@ -201,13 +200,14 @@ jobs:
       - name: Sign artifacts
         env:
           SSH_KEY: ${{ secrets.SSH_SIGNING_KEY }}
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_signing
-          chmod 600 ~/.ssh/id_signing
+          mkdir -p "$HOME/.ssh"
+          echo "$SSH_KEY" > "$HOME/.ssh/id_signing"
+          chmod 600 "$HOME/.ssh/id_signing"
           cd release
-          ssh-keygen -Y sign -f ~/.ssh/id_signing -n file "${{ steps.binary.outputs.name }}"
-          rm ~/.ssh/id_signing
+          ssh-keygen -Y sign -f "$HOME/.ssh/id_signing" -n file "${{ steps.binary.outputs.name }}"
+          rm "$HOME/.ssh/id_signing"
 
       # Create Release
       - name: Create Release

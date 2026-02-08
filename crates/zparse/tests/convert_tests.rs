@@ -1,4 +1,4 @@
-use zparse::{convert, Format};
+use zparse::{Format, convert};
 
 #[test]
 fn test_json_to_toml() -> Result<(), Box<dyn std::error::Error>> {

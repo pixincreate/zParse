@@ -29,7 +29,7 @@ node_modules/
 dist/
 .wrangler/
 
-# Docs (not tracked)
+# Docs
 docs/
 
 # Environment variables

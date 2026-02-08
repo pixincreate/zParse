@@ -309,16 +309,18 @@ impl<'a> Parser<'a> {
 
     fn handle_in_array(&mut self, token: Token) -> Result<Option<Event>> {
         match token.kind {
-            TokenKind::RightBracket => {
+            TokenKind::RightBracket if !self.expecting_value => {
                 self.pop_context();
                 Ok(Some(Event::ArrayEnd))
             }
             TokenKind::Comma if !self.is_first_element && !self.expecting_value => {
-                // Comma is valid, continue to next token
+                // Comma is valid, now we expect a value
+                self.expecting_value = true;
                 self.next_event()
             }
-            _ if self.is_first_element || (!self.expecting_value && self.expect_comma()) => {
+            _ if self.is_first_element || self.expecting_value || self.expect_comma() => {
                 self.is_first_element = false;
+                self.expecting_value = false;
                 self.parse_value_token(token)
             }
             _ => Err(self.expected_error("value or ']'", &token)),
@@ -419,6 +421,32 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::{Error, ErrorKind, Result, Span};
+    use std::fmt::Debug;
+
+    fn fail<T>(message: String) -> Result<T> {
+        Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            message,
+        ))
+    }
+
+    fn ensure_eq<T: PartialEq + Debug>(left: T, right: T) -> Result<()> {
+        if left == right {
+            Ok(())
+        } else {
+            fail(format!("assertion failed: left={left:?} right={right:?}"))
+        }
+    }
+
+    fn next_event_or_fail(parser: &mut Parser<'_>) -> Result<Option<Event>> {
+        parser.next_event()
+    }
+
+    fn parse_value_or_fail(parser: &mut Parser<'_>) -> Result<Value> {
+        parser.parse_value()
+    }
 
     #[test]
     fn test_config_default() {
@@ -460,353 +488,383 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_null() {
+    fn test_parse_null() -> Result<()> {
         let input = b"null";
         let mut parser = Parser::new(input);
 
-        let event = parser.next_event().unwrap();
-        assert_eq!(event, Some(Event::Value(Value::Null)));
+        let event = next_event_or_fail(&mut parser);
+        let event = event?;
+        ensure_eq(event, Some(Event::Value(Value::Null)))?;
 
-        let event = parser.next_event().unwrap();
-        assert_eq!(event, None);
+        let event = next_event_or_fail(&mut parser);
+        let event = event?;
+        ensure_eq(event, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_bool() {
+    fn test_parse_bool() -> Result<()> {
         let input = b"true";
         let mut parser = Parser::new(input);
 
-        let event = parser.next_event().unwrap();
-        assert_eq!(event, Some(Event::Value(Value::Bool(true))));
+        let event = next_event_or_fail(&mut parser);
+        let event = event?;
+        ensure_eq(event, Some(Event::Value(Value::Bool(true))))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_number() {
+    fn test_parse_number() -> Result<()> {
         let input = b"42.5";
         let mut parser = Parser::new(input);
 
-        let event = parser.next_event().unwrap();
-        assert_eq!(event, Some(Event::Value(Value::Number(42.5))));
+        let event = next_event_or_fail(&mut parser);
+        let event = event?;
+        ensure_eq(event, Some(Event::Value(Value::Number(42.5))))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_string() {
+    fn test_parse_string() -> Result<()> {
         let input = br#""hello world""#;
         let mut parser = Parser::new(input);
 
-        let event = parser.next_event().unwrap();
-        assert_eq!(
+        let event = next_event_or_fail(&mut parser)?;
+        ensure_eq(
             event,
-            Some(Event::Value(Value::String("hello world".to_string())))
-        );
+            Some(Event::Value(Value::String("hello world".to_string()))),
+        )?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_empty_object() {
+    fn test_parse_empty_object() -> Result<()> {
         let input = b"{}";
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_empty_array() {
+    fn test_parse_empty_array() -> Result<()> {
         let input = b"[]";
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_simple_object() {
+    fn test_parse_simple_object() -> Result<()> {
         let input = br#"{"key": "value"}"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("key".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::String("value".to_string())))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("key".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::String("value".to_string()))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_simple_array() {
+    fn test_parse_simple_array() -> Result<()> {
         let input = b"[1, 2, 3]";
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(1.0)))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(2.0)))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(3.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(1.0))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(2.0))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(3.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_nested_object() {
+    fn test_parse_nested_object() -> Result<()> {
         let input = br#"{"outer": {"inner": 42}}"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("outer".to_string()))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("inner".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(42.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("outer".to_string())),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("inner".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(42.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_mixed() {
+    fn test_parse_mixed() -> Result<()> {
         let input = br#"{"name": "test", "values": [1, 2], "flag": true}"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("name".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::String("test".to_string())))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("values".to_string()))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(1.0)))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(2.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("flag".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Bool(true)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("name".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::String("test".to_string()))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("values".to_string())),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(1.0))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(2.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("flag".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Bool(true))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_null() {
+    fn test_parse_value_null() -> Result<()> {
         let input = b"null";
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
-        assert_eq!(value, Value::Null);
+        let value = parse_value_or_fail(&mut parser)?;
+        ensure_eq(value, Value::Null)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_bool() {
+    fn test_parse_value_bool() -> Result<()> {
         let input = b"true";
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
-        assert_eq!(value, Value::Bool(true));
+        let value = parse_value_or_fail(&mut parser)?;
+        ensure_eq(value, Value::Bool(true))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_number() {
+    fn test_parse_value_number() -> Result<()> {
         let input = b"123.456";
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
-        assert_eq!(value, Value::Number(123.456));
+        let value = parse_value_or_fail(&mut parser)?;
+        ensure_eq(value, Value::Number(123.456))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_string() {
+    fn test_parse_value_string() -> Result<()> {
         let input = br#""test string""#;
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
-        assert_eq!(value, Value::String("test string".to_string()));
+        let value = parse_value_or_fail(&mut parser)?;
+        ensure_eq(value, Value::String("test string".to_string()))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_array() {
+    fn test_parse_value_array() -> Result<()> {
         let input = b"[1, 2, 3]";
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
+        let value = parse_value_or_fail(&mut parser)?;
         let expected = Value::Array(vec![1.0.into(), 2.0.into(), 3.0.into()].into());
-        assert_eq!(value, expected);
+        ensure_eq(value, expected)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_object() {
+    fn test_parse_value_object() -> Result<()> {
         let input = br#"{"a": 1, "b": 2}"#;
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
+        let value = parse_value_or_fail(&mut parser)?;
 
         let mut expected = Object::new();
         expected.insert("a", 1i32);
         expected.insert("b", 2i32);
-        assert_eq!(value, Value::Object(expected));
+        ensure_eq(value, Value::Object(expected))?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_value_nested() {
+    fn test_parse_value_nested() -> Result<()> {
         let input = br#"{"arr": [1, {"nested": "value"}]}"#;
         let mut parser = Parser::new(input);
-        let value = parser.parse_value().unwrap();
+        let value = parse_value_or_fail(&mut parser)?;
 
         if let Value::Object(obj) = value {
-            assert!(obj.contains_key("arr"));
+            if !obj.contains_key("arr") {
+                return fail("Expected key 'arr'".to_string());
+            }
             if let Some(Value::Array(arr)) = obj.get("arr") {
-                assert_eq!(arr.len(), 2);
-                assert_eq!(arr.get(0), Some(&Value::Number(1.0)));
+                ensure_eq(arr.len(), 2)?;
+                ensure_eq(arr.get(0), Some(&Value::Number(1.0)))?;
             } else {
-                panic!("Expected array");
+                return fail("Expected array".to_string());
             }
         } else {
-            panic!("Expected object");
+            return fail("Expected object".to_string());
         }
+        Ok(())
     }
 
     #[test]
-    fn test_depth_limit() {
+    fn test_depth_limit() -> Result<()> {
         let input = br#"{"a": {"b": {"c": 1}}}"#;
         let config = Config::new(2, 0); // max depth of 2
         let mut parser = Parser::with_config(input, config);
 
         // Should fail when trying to enter third level
         let result = parser.parse_value();
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err().kind(),
-            ErrorKind::MaxDepthExceeded { max: 2 }
-        ));
+        if !matches!(
+            result,
+            Err(err) if matches!(err.kind(), ErrorKind::MaxDepthExceeded { max: 2 })
+        ) {
+            return fail("Expected max depth error".to_string());
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_size_limit() {
+    fn test_size_limit() -> Result<()> {
         let input = b"1234567890";
         let config = Config::new(0, 5); // max size of 5 bytes
         let mut parser = Parser::with_config(input, config);
 
         let result = parser.parse_value();
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err().kind(),
-            ErrorKind::MaxSizeExceeded { max: 5 }
-        ));
+        if !matches!(
+            result,
+            Err(err) if matches!(err.kind(), ErrorKind::MaxSizeExceeded { max: 5 })
+        ) {
+            return fail("Expected max size error".to_string());
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_parse_object_with_multiple_keys() {
+    fn test_parse_object_with_multiple_keys() -> Result<()> {
         let input = br#"{"a": 1, "b": 2, "c": 3}"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("a".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(1.0)))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("b".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(2.0)))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("c".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(3.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("a".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(1.0))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("b".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(2.0))),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("c".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(3.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_array_with_nested_objects() {
+    fn test_parse_array_with_nested_objects() -> Result<()> {
         let input = br#"[{"x": 1}, {"y": 2}]"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("x".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(1.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Key("y".to_string()))
-        );
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(2.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ObjectEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("x".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(1.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Key("y".to_string())),
+        )?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(2.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ObjectEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 
     #[test]
-    fn test_parse_deeply_nested() {
+    fn test_parse_deeply_nested() -> Result<()> {
         let input = br#"[[[[1]]]]"#;
         let mut parser = Parser::new(input);
 
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayStart));
-        assert_eq!(
-            parser.next_event().unwrap(),
-            Some(Event::Value(Value::Number(1.0)))
-        );
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), Some(Event::ArrayEnd));
-        assert_eq!(parser.next_event().unwrap(), None);
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayStart))?;
+        ensure_eq(
+            next_event_or_fail(&mut parser)?,
+            Some(Event::Value(Value::Number(1.0))),
+        )?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, Some(Event::ArrayEnd))?;
+        ensure_eq(next_event_or_fail(&mut parser)?, None)?;
+        Ok(())
     }
 }

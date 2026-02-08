@@ -1,7 +1,7 @@
 //! DOM types for parsed JSON/TOML/YAML/XML values
 
-use indexmap::map::{IntoIter, Iter, Keys, Values};
 use indexmap::IndexMap;
+use indexmap::map::{IntoIter, Iter, Keys, Values};
 use std::ops::Index;
 
 /// A JSON/TOML/YAML/XML value
@@ -130,7 +130,10 @@ impl From<i32> for Value {
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Self::Number(value as f64)
+        #[allow(clippy::as_conversions)]
+        // JSON numbers are represented as f64; precision loss is acceptable here.
+        let number = value as f64;
+        Self::Number(number)
     }
 }
 
@@ -142,7 +145,10 @@ impl From<u32> for Value {
 
 impl From<u64> for Value {
     fn from(value: u64) -> Self {
-        Self::Number(value as f64)
+        #[allow(clippy::as_conversions)]
+        // JSON numbers are represented as f64; precision loss is acceptable here.
+        let number = value as f64;
+        Self::Number(number)
     }
 }
 
@@ -170,12 +176,14 @@ impl From<Object> for Value {
     }
 }
 
+#[allow(clippy::use_self)]
 impl From<Vec<Value>> for Value {
     fn from(values: Vec<Value>) -> Self {
         Self::Array(Array(values))
     }
 }
 
+#[allow(clippy::use_self)]
 impl From<IndexMap<String, Value>> for Value {
     fn from(map: IndexMap<String, Value>) -> Self {
         Self::Object(Object(map))
@@ -418,8 +426,8 @@ impl FromIterator<Value> for Array {
 }
 
 impl IntoIterator for Value {
-    type Item = Value;
-    type IntoIter = std::vec::IntoIter<Value>;
+    type Item = Self;
+    type IntoIter = std::vec::IntoIter<Self>;
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
@@ -524,11 +532,11 @@ mod tests {
         obj.insert("name", "Alice");
         obj.insert("age", 30i32);
 
-        assert_eq!(obj["name"], Value::String("Alice".to_string()));
-        assert_eq!(obj["age"], Value::Number(30.0));
+        assert_eq!(obj.get("name"), Some(&Value::String("Alice".to_string())));
+        assert_eq!(obj.get("age"), Some(&Value::Number(30.0)));
 
         let key = "name".to_string();
-        assert_eq!(obj[key], Value::String("Alice".to_string()));
+        assert_eq!(obj.get(&key), Some(&Value::String("Alice".to_string())));
     }
 
     #[test]
@@ -598,8 +606,8 @@ mod tests {
         arr.push("hello");
         arr.push(42i32);
 
-        assert_eq!(arr[0], Value::String("hello".to_string()));
-        assert_eq!(arr[1], Value::Number(42.0));
+        assert_eq!(arr.get(0), Some(&Value::String("hello".to_string())));
+        assert_eq!(arr.get(1), Some(&Value::Number(42.0)));
     }
 
     #[test]

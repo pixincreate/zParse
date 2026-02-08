@@ -4,9 +4,16 @@
 //!
 //! ```
 //! use zparse::from_str;
-//!
-//! let value = from_str(r#"{"name": "John", "age": 30}"#).unwrap();
-//! assert_eq!(value.as_object().unwrap()["name"].as_string().unwrap(), "John");
+//! # fn main() -> Result<(), zparse::Error> {
+//! let value = from_str(r#"{"name": "John", "age": 30}"#)?;
+//! let name = value
+//!     .as_object()
+//!     .and_then(|obj| obj.get("name"))
+//!     .and_then(|v| v.as_string())
+//!     .unwrap_or_default();
+//! assert_eq!(name, "John");
+//! # Ok(())
+//! # }
 //! ```
 
 #![forbid(unsafe_code)]

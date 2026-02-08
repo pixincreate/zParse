@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
 
 # Release Process
-# 2. Run release script:
+# 1. Run release script to open a PR:
 #   ```bash
-#   ./scripts/release.sh create_tag 1.0.1
+#   ./scripts/release.sh create_pr 1.0.1
 #   ```
-# 3. Wait for the tag to be pushed to the repository which will trigger deployment pipeline
+# 2. Merge the PR
+# 3. Create and push the tag:
+#   ```bash
+#   ./scripts/release.sh create_tag 1.0.1 --publish-crates
+#   ```
 
 set -e
 
 usage() {
     echo "Usage: $0 <function_name> <version> [--publish-crates|-p]\n"
     echo ""
-    echo "Available functions: create_tag, delete_tag\n"
+    echo "Available functions: create_pr, create_tag, delete_tag\n"
     echo ""
     echo "Flags: --publish-crates, -p (only valid with create_tag)\n"
     echo ""
-    echo "Example: $0 create_tag 1.0.0"
+    echo "Example: $0 create_pr 1.0.0"
     echo "Example: $0 create_tag 1.0.0 --publish-crates"
 }
 
@@ -58,8 +62,7 @@ if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
     exit 1
 fi
 
-# Validate CHANGELOG.md has been updated
-validate_changelog() {
+validate_changelog_for_pr() {
     if ! grep -q "\[Unreleased\]" CHANGELOG.md; then
         echo "Error: CHANGELOG.md doesn't contain an [Unreleased] section"
         echo "Please update CHANGELOG.md before releasing"
@@ -67,12 +70,22 @@ validate_changelog() {
     fi
 
     if grep -q "\[$VERSION\]" CHANGELOG.md; then
-        echo "Warning: Version $VERSION already exists in CHANGELOG.md"
-        echo "This may cause issues with the automated release process"
-        read -r -p "Continue anyway? (y/N): " confirm
-        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-            exit 1
-        fi
+        echo "Error: Version $VERSION already exists in CHANGELOG.md"
+        echo "This release appears to already be documented"
+        exit 1
+    fi
+}
+
+validate_changelog_for_tag() {
+    if ! grep -q "\[Unreleased\]" CHANGELOG.md; then
+        echo "Error: CHANGELOG.md doesn't contain an [Unreleased] section"
+        exit 1
+    fi
+
+    if ! grep -q "\[$VERSION\]" CHANGELOG.md; then
+        echo "Error: Version $VERSION not found in CHANGELOG.md"
+        echo "Please merge the release PR before tagging"
+        exit 1
     fi
 }
 
@@ -94,38 +107,75 @@ update_version_files() {
     echo "Updated version to $VERSION in Cargo.toml and CHANGELOG.md"
 }
 
-create_tag() {
-    # Ensure we're on the master branch
+ensure_clean_master() {
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     if [[ "$CURRENT_BRANCH" != "master" ]]; then
-        echo "Error: You must be on the master branch to create a release tag"
+        echo "Error: You must be on the master branch"
         exit 1
     fi
 
-    # Ensure working directory is clean
     if ! git diff-index --quiet HEAD --; then
         echo "Error: You have uncommitted changes"
-        echo "Please commit or stash them before creating a release"
+        echo "Please commit or stash them before releasing"
+        exit 1
+    fi
+}
+
+create_pr() {
+    ensure_clean_master
+    validate_changelog_for_pr
+
+    RELEASE_BRANCH="release/v$VERSION"
+    if git show-ref --quiet "refs/heads/$RELEASE_BRANCH"; then
+        echo "Error: Branch $RELEASE_BRANCH already exists locally"
         exit 1
     fi
 
-    # Validate changelog
-    validate_changelog
-
-    # Confirm with user
-    echo "This will create and push tag v$VERSION, triggering the release workflow."
-    echo "Changelog entries from the [Unreleased] section will be moved to version $VERSION."
-    read -p "Continue? (y/N): " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo "Operation cancelled"
-        exit 0
+    if git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
+        echo "Error: Branch $RELEASE_BRANCH already exists on origin"
+        exit 1
     fi
+
+    git checkout -b "$RELEASE_BRANCH"
 
     update_version_files
 
     git add Cargo.toml CHANGELOG.md
     git commit -m "release(zParse): version $VERSION [skip ci]"
-    git push origin HEAD:master
+    git push -u origin "$RELEASE_BRANCH"
+
+    if command -v gh >/dev/null 2>&1; then
+        gh pr create \
+            --title "release(zParse): version $VERSION" \
+            --body "## Summary
+- Bump versions to $VERSION
+- Update CHANGELOG.md
+
+## Next steps
+- Merge this PR
+- Run ./scripts/release.sh create_tag $VERSION [--publish-crates]" \
+            --head "$RELEASE_BRANCH" \
+            --base "master"
+    else
+        echo "Release branch pushed: $RELEASE_BRANCH"
+        echo "Open a PR targeting master and include:"
+        echo "- Bump versions to $VERSION"
+        echo "- Update CHANGELOG.md"
+    fi
+
+    echo "Release PR ready for review."
+}
+
+create_tag() {
+    ensure_clean_master
+    validate_changelog_for_tag
+
+    echo "This will create and push tag v$VERSION, triggering the release workflow."
+    read -r -p "Continue? (y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Operation cancelled"
+        exit 0
+    fi
 
     echo "Creating tag v$VERSION..."
     git tag -a "v$VERSION" --message "zParse v$VERSION"
@@ -163,9 +213,9 @@ delete_tag() {
 }
 
 # Check if function exists
-if [[ "$FUNCTION" != "create_tag" && "$FUNCTION" != "delete_tag" ]]; then
+if [[ "$FUNCTION" != "create_pr" && "$FUNCTION" != "create_tag" && "$FUNCTION" != "delete_tag" ]]; then
     echo "Error: Unknown function '$FUNCTION'"
-    echo "Available functions: create_tag, delete_tag"
+    echo "Available functions: create_pr, create_tag, delete_tag"
     exit 1
 fi
 

@@ -458,11 +458,14 @@ mod tests {
         ensure_eq(lexer.next_token()?.kind, TokenKind::Number(1E10))?;
         ensure_eq(lexer.next_token()?.kind, TokenKind::Number(1e5))?;
         ensure_eq(lexer.next_token()?.kind, TokenKind::Number(1e-5))?;
-        let three_fourteen = 314_f64 / 100.0;
-        ensure_eq(
-            lexer.next_token()?.kind,
-            TokenKind::Number(three_fourteen / 100.0),
-        )?;
+        let expected = "3.14e-2".parse::<f64>().map_err(|_| {
+            Error::with_message(
+                ErrorKind::InvalidNumber,
+                Span::empty(),
+                "failed to parse expected exponent".to_string(),
+            )
+        })?;
+        ensure_eq(lexer.next_token()?.kind, TokenKind::Number(expected))?;
         Ok(())
     }
 

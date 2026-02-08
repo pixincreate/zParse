@@ -6,7 +6,7 @@ authors.workspace = true
 license-file.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Axum-based API for zparse on Cloudflare Workers"
+description = "Axum-based API server for zparse"
 readme = "../../README.md"
 publish = false
 

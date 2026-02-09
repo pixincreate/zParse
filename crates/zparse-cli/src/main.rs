@@ -21,22 +21,22 @@ struct Args {
     #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with_all = ["command", "parse"])]
     convert: Option<PathBuf>,
     /// Input format (json, toml, yaml, xml)
-    #[arg(short, long, value_enum)]
+    #[arg(short, long, value_enum, conflicts_with = "command")]
     from: Option<FormatArg>,
     /// Output format (json, toml, yaml, xml)
-    #[arg(short, long, value_enum)]
+    #[arg(short, long, value_enum, conflicts_with = "command")]
     to: Option<FormatArg>,
     /// Output file (defaults to stdout)
-    #[arg(short, long, value_name = "OUTPUT")]
+    #[arg(short, long, value_name = "OUTPUT", conflicts_with = "command")]
     output: Option<PathBuf>,
-    /// Print the input content or converted output on success
-    #[arg(long = "print-output")]
+    /// Write input/converted output instead of "ok"
+    #[arg(long = "print-output", conflicts_with = "command")]
     print_output: bool,
     /// Allow JSON comments (// and /* */)
-    #[arg(long)]
+    #[arg(long, conflicts_with = "command")]
     json_comments: bool,
     /// Allow trailing commas in JSON
-    #[arg(long)]
+    #[arg(long, conflicts_with = "command")]
     json_trailing_commas: bool,
 }
 
@@ -70,7 +70,7 @@ struct ParseArgs {
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
-    /// Print the input content on successful parse
+    /// Write input content instead of "ok"
     #[arg(long = "print-output")]
     print_output: bool,
     /// Allow JSON comments (// and /* */)
@@ -95,7 +95,7 @@ struct ConvertArgs {
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
-    /// Print the converted output on successful conversion
+    /// Write converted output instead of "ok"
     #[arg(long = "print-output")]
     print_output: bool,
     /// Allow JSON comments (// and /* */)

@@ -99,7 +99,7 @@ update_version_files() {
 
     sed -i.bak \
         -e "s/^version = .*/version = \"$VERSION\"/" \
-        -e "s/zparse = { version = \"[^\"]*\"/zparse = { version = \"$VERSION\"/" \
+        -e "s/^\(zparse[[:space:]]*=[[:space:]]*{[^\"}]*version[[:space:]]*=[[:space:]]*\"\)[^\"]*\(.*\)$/\1$VERSION\2/" \
         Cargo.toml
     rm Cargo.toml.bak
 

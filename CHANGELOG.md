@@ -7,6 +7,8 @@
 - Add CLI flag to print parsed or converted output on success
 - Add core format detection and top-level --parse/--convert CLI flags
 - Document top-level CLI flags and explicit format usage
+- Document CLI usage rules for top-level flags
+- Add format detection tests for file extensions
 
 ## [2.0.1] - 2026-02-09
 

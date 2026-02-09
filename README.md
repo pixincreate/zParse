@@ -37,14 +37,57 @@ let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
 
 ### CLI
 
+Top-level flags (`--parse` / `--convert`) mirror the subcommands and still accept `--from` / `--to` when you want to be explicit.
+Root-level flags cannot be combined with subcommands.
+By default, successful commands print `ok`. Use `--print-output` to write the input/converted content instead.
+
 ```bash
+# Auto-detect format from file extension and validate
+zparse --parse input.json
+
+# Explicitly set the input format while using top-level flags
+zparse --parse input.json --from json
+
+# Auto-detect format from file extension and echo on success
+zparse --parse input.json --print-output
+
+# Validate JSON input and print "ok" on success
 zparse parse --from json input.json
+
+# Validate TOML input and print "ok" on success
 zparse parse --from toml input.toml
+
+# Validate JSON and echo the original content on success
+zparse parse --from json --print-output input.json
+
+# Convert JSON to TOML and print "ok" on success
 zparse convert --from json --to toml input.json
+
+# Convert TOML to YAML with format inference for the input
 zparse convert --to yaml input.toml
+
+# Auto-detect input format and convert to TOML
+zparse --convert input.json --to toml
+
+# Convert JSON to YAML and print the converted output on success
+zparse convert --from json --to yaml --print-output input.json
+
+# Convert XML from stdin to JSON and write to stdout
 cat input.xml | zparse convert --from xml --to json
+
+# Convert JSON to TOML, write output to a file, and print "ok" to stdout
+zparse convert --from json --to toml --output output.toml input.json
+
+# Convert permissive JSON (comments + trailing commas) to YAML
 zparse convert --from json --to yaml --json-comments --json-trailing-commas input.json
 ```
+
+#### Quick usage rules
+
+- Use either a subcommand (`parse`/`convert`) or a top-level flag (`--parse`/`--convert`), not both.
+- `--to` is required for convert.
+- `--from` is optional when an input file path is provided (auto-detects by extension).
+- When reading from stdin, you must pass `--from`.
 
 ### API
 

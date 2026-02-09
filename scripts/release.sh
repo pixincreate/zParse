@@ -97,8 +97,10 @@ update_version_files() {
         exit 1
     fi
 
-    sed -i.bak -e "s/^version = .*/version = \"$VERSION\"/" \
-               -e "/^zparse =/ s/\(version = \"\)[0-9]\+\.[0-9]\+\.[0-9]\+\(\".*\)/\1$VERSION\2/" Cargo.toml
+    sed -i.bak \
+        -e "s/^version = .*/version = \"$VERSION\"/" \
+        -e "s/zparse = { version = \"[^\"]*\"/zparse = { version = \"$VERSION\"/" \
+        Cargo.toml
     rm Cargo.toml.bak
 
     sed -i.bak "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $DATE/" CHANGELOG.md
@@ -155,7 +157,9 @@ create_pr() {
 - Merge this PR
 - Run ./scripts/release.sh create_tag $VERSION [--publish-crates]" \
             --head "$RELEASE_BRANCH" \
-            --base "master"
+            --base "master" \
+            --assignee "@me" \
+            --label "release"
     else
         echo "Release branch pushed: $RELEASE_BRANCH"
         echo "Open a PR targeting master and include:"

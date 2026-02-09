@@ -9,11 +9,35 @@ use clap::{Parser, Subcommand, ValueEnum};
     name = "zparse",
     version,
     about = "Parse and convert JSON/TOML/YAML/XML",
-    after_help = "Examples:\n  zparse convert --from json --to toml input.json\n  zparse parse --from json input.json\n  cat input.xml | zparse parse --from xml"
+    after_help = "Examples:\n  zparse --parse input.json --print-output\n  zparse --convert input.json --from json --to toml\n  zparse convert --from json --to toml input.json\n  zparse parse --from json input.json\n  cat input.xml | zparse parse --from xml"
 )]
 struct Args {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
+    /// Parse input and validate (top-level mode)
+    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with_all = ["command", "convert"])]
+    parse: Option<PathBuf>,
+    /// Convert between formats (top-level mode)
+    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with_all = ["command", "parse"])]
+    convert: Option<PathBuf>,
+    /// Input format (json, toml, yaml, xml)
+    #[arg(short, long, value_enum)]
+    from: Option<FormatArg>,
+    /// Output format (json, toml, yaml, xml)
+    #[arg(short, long, value_enum)]
+    to: Option<FormatArg>,
+    /// Output file (defaults to stdout)
+    #[arg(short, long, value_name = "OUTPUT")]
+    output: Option<PathBuf>,
+    /// Print the input content or converted output on success
+    #[arg(long = "print-output")]
+    print_output: bool,
+    /// Allow JSON comments (// and /* */)
+    #[arg(long)]
+    json_comments: bool,
+    /// Allow trailing commas in JSON
+    #[arg(long)]
+    json_trailing_commas: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -22,6 +46,17 @@ enum Command {
     Parse(ParseArgs),
     /// Convert between formats
     Convert(ConvertArgs),
+}
+
+impl From<FormatArg> for zparse::Format {
+    fn from(value: FormatArg) -> Self {
+        match value {
+            FormatArg::Json => zparse::Format::Json,
+            FormatArg::Toml => zparse::Format::Toml,
+            FormatArg::Yaml => zparse::Format::Yaml,
+            FormatArg::Xml => zparse::Format::Xml,
+        }
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -80,54 +115,65 @@ enum FormatArg {
     Xml,
 }
 
-impl From<FormatArg> for zparse::Format {
-    fn from(value: FormatArg) -> Self {
-        match value {
-            FormatArg::Json => zparse::Format::Json,
-            FormatArg::Toml => zparse::Format::Toml,
-            FormatArg::Yaml => zparse::Format::Yaml,
-            FormatArg::Xml => zparse::Format::Xml,
-        }
-    }
-}
-
 fn main() -> Result<()> {
     let args = Args::parse();
-    match args.command {
-        Command::Parse(parse_args) => run_parse(parse_args),
-        Command::Convert(convert_args) => run_convert(convert_args),
+    if let Some(command) = args.command {
+        return match command {
+            Command::Parse(parse_args) => run_parse(parse_args),
+            Command::Convert(convert_args) => run_convert(convert_args),
+        };
     }
+
+    if args.parse.is_some() {
+        let parse_args = ParseArgs {
+            input: normalize_flag_input(args.parse),
+            from: args.from,
+            output: args.output,
+            print_output: args.print_output,
+            json_comments: args.json_comments,
+            json_trailing_commas: args.json_trailing_commas,
+        };
+        return run_parse(parse_args);
+    }
+
+    if args.convert.is_some() {
+        let to = args
+            .to
+            .ok_or_else(|| anyhow::anyhow!("--to is required when using --convert"))?;
+        let convert_args = ConvertArgs {
+            input: normalize_flag_input(args.convert),
+            from: args.from,
+            to,
+            output: args.output,
+            print_output: args.print_output,
+            json_comments: args.json_comments,
+            json_trailing_commas: args.json_trailing_commas,
+        };
+        return run_convert(convert_args);
+    }
+
+    bail!("no command specified; use a subcommand or --parse/--convert");
 }
 
 fn run_parse(args: ParseArgs) -> Result<()> {
     let input_data = read_input(&args.input)?;
-    let from = match args.from.or_else(|| infer_format(&args.input)) {
-        Some(format) => format,
-        None => {
-            bail!(
-                "could not infer input format; pass --from or provide an input file with extension"
-            );
-        }
-    };
-
-    let json_config = zparse::JsonConfig::default()
-        .with_comments(args.json_comments)
-        .with_trailing_commas(args.json_trailing_commas);
+    let from = resolve_format(args.from, &args.input)?;
+    let json_config = json_config_from_flags(args.json_comments, args.json_trailing_commas);
 
     match from {
-        FormatArg::Json => {
+        zparse::Format::Json => {
             let mut parser = zparse::json::Parser::with_config(input_data.as_bytes(), json_config);
             parser.parse_value()?;
         }
-        FormatArg::Toml => {
+        zparse::Format::Toml => {
             let mut parser = zparse::toml::Parser::new(input_data.as_bytes());
             parser.parse()?;
         }
-        FormatArg::Yaml => {
+        zparse::Format::Yaml => {
             let mut parser = zparse::yaml::Parser::new(input_data.as_bytes());
             parser.parse()?;
         }
-        FormatArg::Xml => {
+        zparse::Format::Xml => {
             let mut parser = zparse::xml::Parser::new(input_data.as_bytes());
             parser.parse()?;
         }
@@ -143,20 +189,10 @@ fn run_parse(args: ParseArgs) -> Result<()> {
 
 fn run_convert(args: ConvertArgs) -> Result<()> {
     let input_data = read_input(&args.input)?;
-    let from = match args.from.or_else(|| infer_format(&args.input)) {
-        Some(format) => format,
-        None => {
-            bail!(
-                "could not infer input format; pass --from or provide an input file with extension"
-            );
-        }
-    };
-
-    let json_config = zparse::JsonConfig::default()
-        .with_comments(args.json_comments)
-        .with_trailing_commas(args.json_trailing_commas);
+    let from = resolve_format(args.from, &args.input)?;
+    let json_config = json_config_from_flags(args.json_comments, args.json_trailing_commas);
     let options = zparse::ConvertOptions { json: json_config };
-    let output = zparse::convert_with_options(&input_data, from.into(), args.to.into(), &options)?;
+    let output = zparse::convert_with_options(&input_data, from, args.to.into(), &options)?;
 
     if args.print_output {
         write_output(&args.output, output.as_bytes())?;
@@ -195,14 +231,25 @@ fn write_output(path: &Option<PathBuf>, data: &[u8]) -> Result<()> {
     }
 }
 
-fn infer_format(path: &Option<PathBuf>) -> Option<FormatArg> {
-    let path = path.as_ref()?;
-    let ext = path.extension().and_then(|s| s.to_str())?;
-    match ext {
-        "json" => Some(FormatArg::Json),
-        "toml" => Some(FormatArg::Toml),
-        "yaml" | "yml" => Some(FormatArg::Yaml),
-        "xml" => Some(FormatArg::Xml),
-        _ => None,
+fn normalize_flag_input(input: Option<PathBuf>) -> Option<PathBuf> {
+    match input {
+        Some(value) if value.as_os_str() == "-" => None,
+        other => other,
     }
+}
+
+fn resolve_format(from: Option<FormatArg>, input: &Option<PathBuf>) -> Result<zparse::Format> {
+    from.map(zparse::Format::from)
+        .or_else(|| input.as_ref().and_then(zparse::detect_format_from_path))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "could not infer input format; pass --from or provide an input file with extension"
+            )
+        })
+}
+
+fn json_config_from_flags(allow_comments: bool, allow_trailing_commas: bool) -> zparse::JsonConfig {
+    zparse::JsonConfig::default()
+        .with_comments(allow_comments)
+        .with_trailing_commas(allow_trailing_commas)
 }

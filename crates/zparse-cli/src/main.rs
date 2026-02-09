@@ -35,6 +35,9 @@ struct ParseArgs {
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
+    /// Print the input content on successful parse
+    #[arg(long = "print-output")]
+    print_output: bool,
     /// Allow JSON comments (// and /* */)
     #[arg(long)]
     json_comments: bool,
@@ -57,6 +60,9 @@ struct ConvertArgs {
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
+    /// Print the converted output on successful conversion
+    #[arg(long = "print-output")]
+    print_output: bool,
     /// Allow JSON comments (// and /* */)
     #[arg(long)]
     json_comments: bool,
@@ -127,7 +133,11 @@ fn run_parse(args: ParseArgs) -> Result<()> {
         }
     }
 
-    write_output(&args.output, b"ok\n")?;
+    if args.print_output {
+        write_output(&args.output, input_data.as_bytes())?;
+    } else {
+        write_output(&args.output, b"ok\n")?;
+    }
     Ok(())
 }
 
@@ -148,7 +158,11 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
     let options = zparse::ConvertOptions { json: json_config };
     let output = zparse::convert_with_options(&input_data, from.into(), args.to.into(), &options)?;
 
-    write_output(&args.output, output.as_bytes())?;
+    if args.print_output {
+        write_output(&args.output, output.as_bytes())?;
+    } else {
+        write_output(&args.output, b"ok\n")?;
+    }
     Ok(())
 }
 

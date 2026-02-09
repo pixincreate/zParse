@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Feat
+
+- Add CLI flag to print parsed or converted output on success
+
 ## [2.0.1] - 2026-02-09
 
 ### Chore

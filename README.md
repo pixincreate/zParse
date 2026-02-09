@@ -38,11 +38,28 @@ let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
 ### CLI
 
 ```bash
+# Validate JSON input and print "ok" on success
 zparse parse --from json input.json
+
+# Validate TOML input and print "ok" on success
 zparse parse --from toml input.toml
+
+# Validate JSON and echo the original content on success
+zparse parse --from json --print-output input.json
+
+# Convert JSON to TOML and print "ok" on success
 zparse convert --from json --to toml input.json
+
+# Convert TOML to YAML with format inference for the input
 zparse convert --to yaml input.toml
+
+# Convert JSON to YAML and print the converted output on success
+zparse convert --from json --to yaml --print-output input.json
+
+# Convert XML from stdin to JSON and write to stdout
 cat input.xml | zparse convert --from xml --to json
+
+# Convert permissive JSON (comments + trailing commas) to YAML
 zparse convert --from json --to yaml --json-comments --json-trailing-commas input.json
 ```
 

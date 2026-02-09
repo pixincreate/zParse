@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v2.0.5)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,167 +18,91 @@ env:
   PACKAGE_NAME: "zparse-cli"
 
 jobs:
-  prepare-release:
-    name: Prepare Release
+  extract-notes:
+    name: Extract Release Notes
     runs-on: ubuntu-latest
     outputs:
-      commit_sha: ${{ steps.commit-changes.outputs.commit_sha }}
-      version: ${{ steps.get-version.outputs.version }}
+      notes: ${{ steps.notes.outputs.result }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Create GitHub App Token
-        uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.NERDY_ID }}
-          private-key: ${{ secrets.NERDY_SECRET }}
-
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: true
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
 
-      - name: Configure Git
+      - name: Extract Version
+        id: version
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Extract version from tag
-        id: get-version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-
-          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?$ ]]; then
-            echo "::error::Invalid version format: $VERSION. Expected semantic versioning (e.g., 1.2.3 or 1.2.3-alpha.1)"
-            exit 1
-          fi
-
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          REF="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${REF#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Processing version: $VERSION"
 
-      - name: Capture commit SHA
-        id: commit-changes
+      - name: Extract Release Notes from Changelog
+        id: notes
         run: |
-          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-
-  build-and-release:
-    needs: prepare-release
-    name: release-${{ matrix.platform.asset_name }}
-    runs-on: ${{ matrix.platform.os }}
-    strategy:
-      matrix:
-        platform:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            asset_name: linux
-            arch: x86_64
-
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            asset_name: darwin
-            arch: x86_64
-
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            asset_name: darwin
-            arch: aarch64
-
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            asset_name: windows
-            arch: x86_64
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare-release.outputs.commit_sha }}
-
-      - name: Set binary name
-        id: binary
-        shell: bash
-        run: |
-          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            echo "name=${{ env.BINARY_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}.exe" >> $GITHUB_OUTPUT
-          else
-            echo "name=${{ env.BINARY_NAME }}-${{ matrix.platform.asset_name }}-${{ matrix.platform.arch }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Extract Release Notes
-        id: release-notes
-        if: matrix.platform.os == 'ubuntu-latest'
-        env:
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: |
+          VERSION="${{ steps.version.outputs.version }}"
           NOTES=$(awk -v ver="$VERSION" '
-            /^## \[/ { if (p) { exit }; if ($2 == "['ver']") { p=1; next } }
+            /^## \[/ { if (p) exit; if ($2 == "["ver"]") { p=1; next } }
             p { print }
           ' CHANGELOG.md)
 
-          ADDITIONAL_INFO="
-
-          ---
-
-          See [\`README.md\`](./README.md) for information on how to install and use ${BINARY_NAME}.
-
-          The downloads are digitally signed. Please consider [verifying the downloads](./README.md#verifying-downloads)."
-
-          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "result<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "$ADDITIONAL_INFO" >> $GITHUB_OUTPUT
+          echo -e "\n---\n" >> $GITHUB_OUTPUT
+          echo "See [\`README.md\`](./README.md) for installation info." >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - uses: dtolnay/rust-toolchain@stable
+  build:
+    name: Build Binary (${{ matrix.asset }})
+    needs: extract-notes
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: linux-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset: darwin-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: darwin-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
         with:
-          targets: ${{ matrix.platform.target }}
+          ref: v${{ needs.extract-notes.outputs.version }}
 
-      - name: Ensure target is installed
-        if: matrix.platform.target == 'aarch64-apple-darwin'
-        run: |
-          rustup target add aarch64-apple-darwin
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-      # Build the specific package
-      - name: Build Binary
-        run: |
-          cargo build --release --target ${{ matrix.platform.target }} -p ${{ env.PACKAGE_NAME }} --bin ${{ env.BINARY_NAME }}
+      - name: Build Release Binary
+        run: cargo build --release --target ${{ matrix.target }} -p ${{ env.PACKAGE_NAME }} --bin ${{ env.BINARY_NAME }}
 
-      - name: Prepare Asset
+      - name: Package Binary
         shell: bash
         run: |
-          mkdir -p release
-          cp target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}${{ matrix.platform.os == 'windows-latest' && '.exe' || '' }} \
-            release/${{ steps.binary.outputs.name }}
+          mkdir -p dist
+          EXT="${{ matrix.os == 'windows-latest' && '.exe' || '' }}"
+          SRC="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}${EXT}"
+          DST="dist/${{ env.BINARY_NAME }}-${{ matrix.asset }}${EXT}"
+          cp "$SRC" "$DST"
 
-      - name: Smoke test binary
-        shell: bash
-        run: |
-          ./release/${{ steps.binary.outputs.name }} --help || ./release/${{ steps.binary.outputs.name }} -h || true
-
-          # Verify binary exists and has proper permissions
-          if [ ! -f "release/${{ steps.binary.outputs.name }}" ]; then
-            echo "::error::Binary not found after build"
-            exit 1
+          # Verify
+          test -f "$DST" || { echo "Binary not found"; exit 1; }
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            chmod +x "$DST"
+            "$DST" --help || true
           fi
 
-          if [ "${{ matrix.platform.os }}" != "windows-latest" ]; then
-            chmod +x "release/${{ steps.binary.outputs.name }}"
-          fi
-
-      # Create checksum
-      - name: Generate SHA-256
-        shell: bash
-        run: |
-          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            certutil -hashfile release/${{ steps.binary.outputs.name }} SHA256 | grep -v "hash" > release/${{ steps.binary.outputs.name }}.sha256
-          else
-            shasum -a 256 release/${{ steps.binary.outputs.name }} > release/${{ steps.binary.outputs.name }}.sha256
-          fi
-
-      # Sign the artifacts
-      - name: Sign artifacts
+      - name: Sign Binary with SSH Key
         env:
           SSH_KEY: ${{ secrets.SSH_SIGNING_KEY }}
         shell: bash
@@ -180,21 +110,60 @@ jobs:
           mkdir -p "$HOME/.ssh"
           echo "$SSH_KEY" > "$HOME/.ssh/id_signing"
           chmod 600 "$HOME/.ssh/id_signing"
-          cd release
-          ssh-keygen -Y sign -f "$HOME/.ssh/id_signing" -n file "${{ steps.binary.outputs.name }}"
-          rm "$HOME/.ssh/id_signing"
 
-      # Create Release
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+          FILE="${{ env.BINARY_NAME }}-${{ matrix.asset }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}"
+          cd dist
+          ssh-keygen -Y sign -f "$HOME/.ssh/id_signing" -n file "$FILE"
+
+          rm "$HOME/.ssh/id_signing"
+          ls -la
+
+      - name: Generate SHA-256 Checksums
+        shell: bash
+        run: |
+          cd dist
+          FILE="${{ env.BINARY_NAME }}-${{ matrix.asset }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}"
+
+          # Generate checksum for binary
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            certutil -hashfile "$FILE" SHA256 | grep -v "hash" > "${FILE}.sha256"
+          else
+            shasum -a 256 "$FILE" > "${FILE}.sha256"
+          fi
+
+          # Generate checksum for signature if it exists
+          if [ -f "${FILE}.sig" ]; then
+            if [ "${{ matrix.os }}" = "windows-latest" ]; then
+              certutil -hashfile "${FILE}.sig" SHA256 | grep -v "hash" > "${FILE}.sig.sha256"
+            else
+              shasum -a 256 "${FILE}.sig" > "${FILE}.sig.sha256"
+            fi
+          fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v6
         with:
-          name: "zParse ${{ github.ref_name }}"
-          files: |
-            release/${{ steps.binary.outputs.name }}
-            release/${{ steps.binary.outputs.name }}.sha256
-            release/${{ steps.binary.outputs.name }}.sig
-          body: ${{ steps.release-notes.outputs.NOTES }}
-          draft: false
-          prerelease: false
+          name: ${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [extract-notes, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          tag_name: v${{ needs.extract-notes.outputs.version }}
+          name: zParse v${{ needs.extract-notes.outputs.version }}
+          body: ${{ needs.extract-notes.outputs.notes }}
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -33,6 +33,9 @@ pub use value::{Array, Object, TomlDatetime, Value};
 pub mod convert;
 pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 
+/// Detect input format from a file path extension (case-insensitive).
+///
+/// Returns None if the path has no extension or the extension is unsupported.
 pub fn detect_format_from_path(path: impl AsRef<std::path::Path>) -> Option<Format> {
     let ext = path.as_ref().extension()?.to_str()?;
     match ext.to_ascii_lowercase().as_str() {

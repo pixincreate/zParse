@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-02-09
+
 ### Feat
 
 - Print parsed or converted output on success

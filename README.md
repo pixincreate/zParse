@@ -37,7 +37,18 @@ let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
 
 ### CLI
 
+Top-level flags (`--parse` / `--convert`) mirror the subcommands and still accept `--from` / `--to` when you want to be explicit.
+
 ```bash
+# Auto-detect format from file extension and validate
+zparse --parse input.json
+
+# Explicitly set the input format while using top-level flags
+zparse --parse input.json --from json
+
+# Auto-detect format from file extension and echo on success
+zparse --parse input.json --print-output
+
 # Validate JSON input and print "ok" on success
 zparse parse --from json input.json
 
@@ -52,6 +63,9 @@ zparse convert --from json --to toml input.json
 
 # Convert TOML to YAML with format inference for the input
 zparse convert --to yaml input.toml
+
+# Auto-detect input format and convert to TOML
+zparse --convert input.json --to toml
 
 # Convert JSON to YAML and print the converted output on success
 zparse convert --from json --to yaml --print-output input.json

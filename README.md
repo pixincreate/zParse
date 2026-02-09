@@ -38,6 +38,7 @@ let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
 ### CLI
 
 Top-level flags (`--parse` / `--convert`) mirror the subcommands and still accept `--from` / `--to` when you want to be explicit.
+Root-level flags cannot be combined with subcommands.
 
 ```bash
 # Auto-detect format from file extension and validate
@@ -76,6 +77,13 @@ cat input.xml | zparse convert --from xml --to json
 # Convert permissive JSON (comments + trailing commas) to YAML
 zparse convert --from json --to yaml --json-comments --json-trailing-commas input.json
 ```
+
+#### Quick usage rules
+
+- Use either a subcommand (`parse`/`convert`) or a top-level flag (`--parse`/`--convert`), not both.
+- `--to` is required for convert.
+- `--from` is optional when an input file path is provided (auto-detects by extension).
+- When reading from stdin, you must pass `--from`.
 
 ### API
 

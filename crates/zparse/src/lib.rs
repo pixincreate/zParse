@@ -33,6 +33,17 @@ pub use value::{Array, Object, TomlDatetime, Value};
 pub mod convert;
 pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 
+pub fn detect_format_from_path(path: impl AsRef<std::path::Path>) -> Option<Format> {
+    let ext = path.as_ref().extension()?.to_str()?;
+    match ext.to_ascii_lowercase().as_str() {
+        "json" => Some(Format::Json),
+        "toml" => Some(Format::Toml),
+        "yaml" | "yml" => Some(Format::Yaml),
+        "xml" => Some(Format::Xml),
+        _ => None,
+    }
+}
+
 pub mod json;
 pub mod toml;
 pub mod xml;

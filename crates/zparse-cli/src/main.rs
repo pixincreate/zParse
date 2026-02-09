@@ -194,13 +194,17 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
     let options = zparse::ConvertOptions { json: json_config };
     let output = zparse::convert_with_options(&input_data, from, args.to.into(), &options)?;
 
-    // Always write the converted output to the selected destination.
-    write_output(&args.output, output.as_bytes())?;
+    if args.print_output {
+        write_output(&args.output, output.as_bytes())?;
+    } else {
+        if let Some(path) = &args.output {
+            write_output(&Some(path.clone()), output.as_bytes())?;
+        }
 
-    // Optionally print a simple status line to stderr when not printing
-    // to stdout and an explicit output file was used.
-    if !args.print_output && args.output.is_some() {
-        eprintln!("ok");
+        let mut stdout = io::stdout();
+        stdout
+            .write_all(b"ok\n")
+            .context("failed to write stdout")?;
     }
     Ok(())
 }

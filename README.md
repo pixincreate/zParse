@@ -39,6 +39,7 @@ let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
 
 Top-level flags (`--parse` / `--convert`) mirror the subcommands and still accept `--from` / `--to` when you want to be explicit.
 Root-level flags cannot be combined with subcommands.
+By default, successful commands print `ok`. Use `--print-output` to write the input/converted content instead.
 
 ```bash
 # Auto-detect format from file extension and validate
@@ -73,6 +74,9 @@ zparse convert --from json --to yaml --print-output input.json
 
 # Convert XML from stdin to JSON and write to stdout
 cat input.xml | zparse convert --from xml --to json
+
+# Convert JSON to TOML, write output to a file, and print "ok" to stdout
+zparse convert --from json --to toml --output output.toml input.json
 
 # Convert permissive JSON (comments + trailing commas) to YAML
 zparse convert --from json --to yaml --json-comments --json-trailing-commas input.json

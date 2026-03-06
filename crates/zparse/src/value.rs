@@ -1,7 +1,7 @@
 //! DOM types for parsed JSON/TOML/YAML/XML values
 
-use indexmap::map::{IntoIter, Iter, Keys, Values};
 use indexmap::IndexMap;
+use indexmap::map::{IntoIter, Iter, Keys, Values};
 use std::ops::Index;
 use time::{Date, OffsetDateTime, PrimitiveDateTime, Time};
 

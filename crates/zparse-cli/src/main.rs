@@ -9,34 +9,35 @@ use clap::{Parser, Subcommand, ValueEnum};
     name = "zparse",
     version,
     about = "Parse and convert JSON/TOML/YAML/XML",
+    args_conflicts_with_subcommands = true,
     after_help = "Examples:\n  zparse --parse input.json --print-output\n  zparse --convert input.json --from json --to toml\n  zparse convert --from json --to toml input.json\n  zparse parse --from json input.json\n  cat input.xml | zparse parse --from xml"
 )]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
     /// Parse input and validate (top-level mode)
-    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with_all = ["command", "convert"])]
+    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with = "convert")]
     parse: Option<PathBuf>,
     /// Convert between formats (top-level mode)
-    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with_all = ["command", "parse"])]
+    #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with = "parse")]
     convert: Option<PathBuf>,
     /// Input format (json, toml, yaml, xml)
-    #[arg(short, long, value_enum, conflicts_with = "command")]
+    #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
     /// Output format (json, toml, yaml, xml)
-    #[arg(short, long, value_enum, conflicts_with = "command")]
+    #[arg(short, long, value_enum)]
     to: Option<FormatArg>,
     /// Output file (defaults to stdout)
-    #[arg(short, long, value_name = "OUTPUT", conflicts_with = "command")]
+    #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
     /// Write input/converted output instead of "ok"
-    #[arg(long = "print-output", conflicts_with = "command")]
+    #[arg(long = "print-output")]
     print_output: bool,
     /// Allow JSON comments (// and /* */)
-    #[arg(long, conflicts_with = "command")]
+    #[arg(long)]
     json_comments: bool,
     /// Allow trailing commas in JSON
-    #[arg(long, conflicts_with = "command")]
+    #[arg(long)]
     json_trailing_commas: bool,
 }
 
@@ -52,6 +53,7 @@ impl From<FormatArg> for zparse::Format {
     fn from(value: FormatArg) -> Self {
         match value {
             FormatArg::Json => zparse::Format::Json,
+            FormatArg::Jsonc => zparse::Format::Json,
             FormatArg::Toml => zparse::Format::Toml,
             FormatArg::Yaml => zparse::Format::Yaml,
             FormatArg::Xml => zparse::Format::Xml,
@@ -109,6 +111,7 @@ struct ConvertArgs {
 #[derive(Clone, Debug, ValueEnum)]
 enum FormatArg {
     Json,
+    Jsonc,
     Toml,
     #[value(alias = "yml")]
     Yaml,
@@ -157,8 +160,9 @@ fn main() -> Result<()> {
 
 fn run_parse(args: ParseArgs) -> Result<()> {
     let input_data = read_input(&args.input)?;
-    let from = resolve_format(args.from, &args.input)?;
-    let json_config = json_config_from_flags(args.json_comments, args.json_trailing_commas);
+    let (from, is_jsonc) = resolve_format(args.from, &args.input)?;
+    let json_config =
+        json_config_from_flags(is_jsonc, args.json_comments, args.json_trailing_commas);
 
     match from {
         zparse::Format::Json => {
@@ -189,8 +193,9 @@ fn run_parse(args: ParseArgs) -> Result<()> {
 
 fn run_convert(args: ConvertArgs) -> Result<()> {
     let input_data = read_input(&args.input)?;
-    let from = resolve_format(args.from, &args.input)?;
-    let json_config = json_config_from_flags(args.json_comments, args.json_trailing_commas);
+    let (from, is_jsonc) = resolve_format(args.from, &args.input)?;
+    let json_config =
+        json_config_from_flags(is_jsonc, args.json_comments, args.json_trailing_commas);
     let options = zparse::ConvertOptions { json: json_config };
     let output = zparse::convert_with_options(&input_data, from, args.to.into(), &options)?;
 
@@ -245,18 +250,48 @@ fn normalize_flag_input(input: Option<PathBuf>) -> Option<PathBuf> {
     }
 }
 
-fn resolve_format(from: Option<FormatArg>, input: &Option<PathBuf>) -> Result<zparse::Format> {
-    from.map(zparse::Format::from)
-        .or_else(|| input.as_ref().and_then(zparse::detect_format_from_path))
+fn resolve_format(
+    from: Option<FormatArg>,
+    input: &Option<PathBuf>,
+) -> Result<(zparse::Format, bool)> {
+    let format_arg = from
+        .or_else(|| {
+            input.as_ref().and_then(|path| {
+                if zparse::is_jsonc_path(path.to_str().unwrap_or("")) {
+                    Some(FormatArg::Jsonc)
+                } else {
+                    zparse::detect_format_from_path(path).map(|fmt| match fmt {
+                        zparse::Format::Json => FormatArg::Json,
+                        zparse::Format::Toml => FormatArg::Toml,
+                        zparse::Format::Yaml => FormatArg::Yaml,
+                        zparse::Format::Xml => FormatArg::Xml,
+                    })
+                }
+            })
+        })
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "could not infer input format; pass --from or provide an input file with extension"
             )
-        })
+        })?;
+
+    let is_jsonc = matches!(format_arg, FormatArg::Jsonc);
+    let zparse_format = zparse::Format::from(format_arg);
+    Ok((zparse_format, is_jsonc))
 }
 
-fn json_config_from_flags(allow_comments: bool, allow_trailing_commas: bool) -> zparse::JsonConfig {
-    zparse::JsonConfig::default()
+fn json_config_from_flags(
+    is_jsonc: bool,
+    allow_comments: bool,
+    allow_trailing_commas: bool,
+) -> zparse::JsonConfig {
+    let mut config = zparse::JsonConfig::default()
         .with_comments(allow_comments)
-        .with_trailing_commas(allow_trailing_commas)
+        .with_trailing_commas(allow_trailing_commas);
+
+    if is_jsonc {
+        config = config.with_comments(true).with_trailing_commas(true);
+    }
+
+    config
 }

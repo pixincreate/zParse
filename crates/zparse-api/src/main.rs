@@ -21,6 +21,7 @@ struct ConvertRequest {
 #[serde(rename_all = "lowercase")]
 enum ApiFormat {
     Json,
+    Jsonc,
     Toml,
     Yaml,
     Xml,
@@ -30,6 +31,7 @@ impl From<ApiFormat> for zparse::Format {
     fn from(value: ApiFormat) -> Self {
         match value {
             ApiFormat::Json => zparse::Format::Json,
+            ApiFormat::Jsonc => zparse::Format::Json,
             ApiFormat::Toml => zparse::Format::Toml,
             ApiFormat::Yaml => zparse::Format::Yaml,
             ApiFormat::Xml => zparse::Format::Xml,
@@ -86,7 +88,7 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 async fn formats() -> Json<Vec<&'static str>> {
-    Json(vec!["json", "toml", "yaml", "xml"])
+    Json(vec!["json", "jsonc", "toml", "yaml", "xml"])
 }
 
 async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {
@@ -97,7 +99,22 @@ async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {
 }
 
 async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
-    let result = zparse::convert(&payload.content, payload.from.into(), payload.to.into());
+    let result = if matches!(payload.from, ApiFormat::Jsonc) {
+        let config = zparse::JsonConfig {
+            allow_comments: true,
+            allow_trailing_commas: true,
+            ..zparse::JsonConfig::default()
+        };
+        zparse::convert_with_options(
+            &payload.content,
+            payload.from.into(),
+            payload.to.into(),
+            &zparse::ConvertOptions { json: config },
+        )
+    } else {
+        zparse::convert(&payload.content, payload.from.into(), payload.to.into())
+    };
+
     match result {
         Ok(content) => Json(ConvertResponse {
             status: "ok",
@@ -111,7 +128,22 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
 }
 
 fn parse_to_json(input: &str, format: ApiFormat) -> Result<serde_json::Value, String> {
-    let json = zparse::convert(input, format.into(), zparse::Format::Json)
-        .map_err(|err| err.to_string())?;
+    let json = if matches!(format, ApiFormat::Jsonc) {
+        let config = zparse::JsonConfig {
+            allow_comments: true,
+            allow_trailing_commas: true,
+            ..zparse::JsonConfig::default()
+        };
+        zparse::convert_with_options(
+            input,
+            format.into(),
+            zparse::Format::Json,
+            &zparse::ConvertOptions { json: config },
+        )
+    } else {
+        zparse::convert(input, format.into(), zparse::Format::Json)
+    };
+
+    let json: String = json.map_err(|err| err.to_string())?;
     serde_json::from_str(&json).map_err(|err| err.to_string())
 }

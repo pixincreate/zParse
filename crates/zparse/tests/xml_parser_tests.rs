@@ -92,3 +92,34 @@ fn test_parse_self_closing() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_parse_complex_xml_document() -> Result<()> {
+    let input = b"<catalog region=\"global\"><book id=\"b1\"><title>Rust</title><authors><author>Ann</author><author>Bob</author></authors><price currency=\"USD\">39.99</price></book><book id=\"b2\"><title>XML</title><price currency=\"EUR\">29.50</price></book></catalog>";
+    let mut parser = Parser::new(input);
+    let doc = parser.parse()?;
+
+    ensure_eq(doc.root.name.as_str(), "catalog")?;
+    ensure_eq(
+        doc.root.attributes.get("region"),
+        Some(&"global".to_string()),
+    )?;
+    ensure_eq(doc.root.children.len(), 2)?;
+
+    match doc.root.children.first() {
+        Some(XmlContent::Element(book)) => {
+            ensure_eq(book.name.as_str(), "book")?;
+            ensure_eq(book.attributes.get("id"), Some(&"b1".to_string()))?;
+            ensure_eq(book.children.len(), 3)?;
+        }
+        _ => {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "expected first book element".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}

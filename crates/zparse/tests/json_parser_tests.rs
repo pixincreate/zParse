@@ -495,3 +495,103 @@ fn test_parse_deeply_nested() -> Result<()> {
     ensure_eq(next_event_or_fail(&mut parser)?, None)?;
     Ok(())
 }
+
+#[test]
+fn test_parse_complex_json_document() -> Result<()> {
+    let input = br#"{
+        "meta": {
+            "version": 2,
+            "tags": ["alpha", "beta", "gamma"]
+        },
+        "items": [
+            {"id": 1, "enabled": true, "scores": [1, 2, 3]},
+            {"id": 2, "enabled": false, "scores": [5, 8]}
+        ],
+        "threshold": 0.75,
+        "active": true
+    }"#;
+
+    let mut parser = Parser::new(input);
+    let value = parse_value_or_fail(&mut parser)?;
+
+    if let Value::Object(obj) = value {
+        ensure_eq(obj.get("active"), Some(&Value::Bool(true)))?;
+        ensure_eq(obj.get("threshold"), Some(&Value::Number(0.75)))?;
+
+        match obj.get("meta") {
+            Some(Value::Object(meta)) => {
+                ensure_eq(meta.get("version"), Some(&Value::Number(2.0)))?;
+                match meta.get("tags") {
+                    Some(Value::Array(tags)) => {
+                        ensure_eq(tags.len(), 3)?;
+                        ensure_eq(tags.get(0), Some(&Value::String("alpha".to_string())))?;
+                    }
+                    _ => return fail("expected tags array".to_string()),
+                }
+            }
+            _ => return fail("expected meta object".to_string()),
+        }
+
+        match obj.get("items") {
+            Some(Value::Array(items)) => {
+                ensure_eq(items.len(), 2)?;
+                match items.get(0) {
+                    Some(Value::Object(first)) => {
+                        ensure_eq(first.get("id"), Some(&Value::Number(1.0)))?;
+                        ensure_eq(first.get("enabled"), Some(&Value::Bool(true)))?;
+                    }
+                    _ => return fail("expected first item object".to_string()),
+                }
+            }
+            _ => return fail("expected items array".to_string()),
+        }
+    } else {
+        return fail("expected complex root object".to_string());
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_complex_jsonc_style_document() -> Result<()> {
+    let input = br#"{
+        // metadata
+        "meta": {
+            "name": "jsonc-case",
+            "flags": [true, false,],
+        },
+        /* list of values */
+        "values": [
+            {"k": "a", "v": 1,},
+            {"k": "b", "v": 2,},
+        ],
+        "enabled": true,
+    }"#;
+
+    let config = Config::default()
+        .with_comments(true)
+        .with_trailing_commas(true);
+    let mut parser = Parser::with_config(input, config);
+    let value = parse_value_or_fail(&mut parser)?;
+
+    if let Value::Object(obj) = value {
+        ensure_eq(obj.get("enabled"), Some(&Value::Bool(true)))?;
+        match obj.get("meta") {
+            Some(Value::Object(meta)) => {
+                ensure_eq(
+                    meta.get("name"),
+                    Some(&Value::String("jsonc-case".to_string())),
+                )?;
+            }
+            _ => return fail("expected meta object".to_string()),
+        }
+        match obj.get("values") {
+            Some(Value::Array(values)) => ensure_eq(values.len(), 2)?,
+            _ => return fail("expected values array".to_string()),
+        }
+    } else {
+        return fail("expected object".to_string());
+    }
+
+    Ok(())
+}

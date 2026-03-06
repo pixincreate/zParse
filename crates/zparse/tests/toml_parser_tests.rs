@@ -154,3 +154,77 @@ fn test_parse_inline_table() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_parse_complex_toml_document() -> Result<()> {
+    let input = b"title = \"Complex\"\n\
+[owner]\n\
+name = \"Tom\"\n\
+dob = 1979-05-27T07:32:00Z\n\
+\n\
+[database]\n\
+enabled = true\n\
+ports = [ 8000, 8001, 8002 ]\n\
+temp_targets = { cpu = 79.5, case = 72.0 }\n\
+\n\
+[[products]]\n\
+name = \"Hammer\"\n\
+sku = 738594937\n\
+\n\
+[[products]]\n\
+name = \"Nail\"\n\
+sku = 284758393\n\
+color = \"gray\"\n";
+
+    let mut parser = Parser::new(input);
+    let value = parser.parse()?;
+
+    if let Value::Object(obj) = value {
+        ensure_eq(
+            obj.get("title"),
+            Some(&Value::String("Complex".to_string())),
+        )?;
+
+        match obj.get("database") {
+            Some(Value::Object(database)) => {
+                ensure_eq(database.get("enabled"), Some(&Value::Bool(true)))?;
+                match database.get("ports") {
+                    Some(Value::Array(ports)) => ensure_eq(ports.len(), 3)?,
+                    _ => {
+                        return Err(Error::with_message(
+                            ErrorKind::InvalidToken,
+                            Span::empty(),
+                            "expected ports array".to_string(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidToken,
+                    Span::empty(),
+                    "expected database table".to_string(),
+                ));
+            }
+        }
+
+        match obj.get("products") {
+            Some(Value::Array(products)) => ensure_eq(products.len(), 2)?,
+            _ => {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidToken,
+                    Span::empty(),
+                    "expected products array".to_string(),
+                ));
+            }
+        }
+    } else {
+        return Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected object".to_string(),
+        ));
+    }
+
+    Ok(())
+}

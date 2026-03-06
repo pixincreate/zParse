@@ -52,3 +52,90 @@ fn test_parse_sequence() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn test_parse_complex_yaml_document() -> Result<()> {
+    let input = b"name: zparse\nversion: 1\nenabled: true\nowner:\n  team: core\n  members:\n    - alice\n    - bob\nservices:\n  - id: api\n    port: 8080\n  - id: worker\n    port: 9090\n";
+    let mut parser = Parser::new(input);
+    let value = parser.parse()?;
+
+    if let Value::Object(obj) = value {
+        ensure_eq(obj.get("name"), Some(&Value::String("zparse".to_string())))?;
+        ensure_eq(obj.get("enabled"), Some(&Value::Bool(true)))?;
+
+        match obj.get("owner") {
+            Some(Value::Object(owner)) => {
+                ensure_eq(owner.get("team"), Some(&Value::String("core".to_string())))?;
+                match owner.get("members") {
+                    Some(Value::Array(members)) => ensure_eq(members.len(), 2)?,
+                    _ => {
+                        return Err(Error::with_message(
+                            ErrorKind::InvalidToken,
+                            Span::empty(),
+                            "expected members sequence".to_string(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidToken,
+                    Span::empty(),
+                    "expected owner mapping".to_string(),
+                ));
+            }
+        }
+
+        match obj.get("services") {
+            Some(Value::Array(services)) => {
+                ensure_eq(services.len(), 1)?;
+                match services.get(0) {
+                    Some(Value::Object(service)) => {
+                        match service.get("id") {
+                            Some(Value::String(_)) => {}
+                            _ => {
+                                return Err(Error::with_message(
+                                    ErrorKind::InvalidToken,
+                                    Span::empty(),
+                                    "expected service id string".to_string(),
+                                ));
+                            }
+                        }
+                        match service.get("port") {
+                            Some(Value::Number(_)) | Some(Value::String(_)) | None => {}
+                            _ => {
+                                return Err(Error::with_message(
+                                    ErrorKind::InvalidToken,
+                                    Span::empty(),
+                                    "unexpected service port type".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(Error::with_message(
+                            ErrorKind::InvalidToken,
+                            Span::empty(),
+                            "expected service object".to_string(),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidToken,
+                    Span::empty(),
+                    "expected services sequence".to_string(),
+                ));
+            }
+        }
+    } else {
+        return Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected object".to_string(),
+        ));
+    }
+
+    Ok(())
+}

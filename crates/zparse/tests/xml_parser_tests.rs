@@ -20,7 +20,7 @@ fn test_parse_simple_element() -> Result<()> {
     let mut parser = Parser::new(input);
     let doc = parser.parse()?;
 
-    ensure_eq(doc.root.name, "root".to_string())?;
+    ensure_eq(doc.root.name.as_str(), "root")?;
     ensure_eq(doc.root.children.len(), 0)?;
     Ok(())
 }

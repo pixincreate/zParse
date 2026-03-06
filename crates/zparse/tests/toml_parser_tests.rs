@@ -144,6 +144,12 @@ fn test_parse_inline_table() -> Result<()> {
                 ));
             }
         }
+    } else {
+        return Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected object".to_string(),
+        ));
     }
 
     Ok(())

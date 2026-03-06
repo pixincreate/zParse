@@ -21,12 +21,12 @@ struct Args {
     /// Convert between formats (top-level mode)
     #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with = "parse")]
     convert: Option<PathBuf>,
-    /// Input format (json, toml, yaml, xml)
+    /// Input format (json, jsonc, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
     /// Output format (json, toml, yaml, xml)
     #[arg(short, long, value_enum)]
-    to: Option<FormatArg>,
+    to: Option<OutputFormatArg>,
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
@@ -61,12 +61,23 @@ impl From<FormatArg> for zparse::Format {
     }
 }
 
+impl From<OutputFormatArg> for zparse::Format {
+    fn from(value: OutputFormatArg) -> Self {
+        match value {
+            OutputFormatArg::Json => zparse::Format::Json,
+            OutputFormatArg::Toml => zparse::Format::Toml,
+            OutputFormatArg::Yaml => zparse::Format::Yaml,
+            OutputFormatArg::Xml => zparse::Format::Xml,
+        }
+    }
+}
+
 #[derive(Debug, Parser)]
 struct ParseArgs {
     /// Input file (defaults to stdin)
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
-    /// Input format (json, toml, yaml, xml)
+    /// Input format (json, jsonc, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
     /// Output file (defaults to stdout)
@@ -88,12 +99,12 @@ struct ConvertArgs {
     /// Input file (defaults to stdin)
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
-    /// Input format (json, toml, yaml, xml)
+    /// Input format (json, jsonc, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
     /// Output format (json, toml, yaml, xml)
     #[arg(short, long, value_enum)]
-    to: FormatArg,
+    to: OutputFormatArg,
     /// Output file (defaults to stdout)
     #[arg(short, long, value_name = "OUTPUT")]
     output: Option<PathBuf>,
@@ -112,6 +123,15 @@ struct ConvertArgs {
 enum FormatArg {
     Json,
     Jsonc,
+    Toml,
+    #[value(alias = "yml")]
+    Yaml,
+    Xml,
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+enum OutputFormatArg {
+    Json,
     Toml,
     #[value(alias = "yml")]
     Yaml,
@@ -197,7 +217,8 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
     let json_config =
         json_config_from_flags(is_jsonc, args.json_comments, args.json_trailing_commas);
     let options = zparse::ConvertOptions { json: json_config };
-    let output = zparse::convert_with_options(&input_data, from, args.to.into(), &options)?;
+    let to = args.to.into();
+    let output = zparse::convert_with_options(&input_data, from, to, &options)?;
 
     if args.print_output {
         write_output(&args.output, output.as_bytes())?;
@@ -257,7 +278,12 @@ fn resolve_format(
     let format_arg = from
         .or_else(|| {
             input.as_ref().and_then(|path| {
-                if zparse::is_jsonc_path(path.to_str().unwrap_or("")) {
+                if path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext.eq_ignore_ascii_case("jsonc"))
+                    .unwrap_or(false)
+                {
                     Some(FormatArg::Jsonc)
                 } else {
                     zparse::detect_format_from_path(path).map(|fmt| match fmt {

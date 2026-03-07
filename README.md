@@ -119,6 +119,32 @@ curl -s -X POST http://127.0.0.1:3000/api/convert \
   -d '{"content":"{\"name\":\"zparse\"}","from":"json","to":"toml"}'
 ```
 
+### WASM (Browser / Node)
+
+Build the WASM package:
+
+```bash
+wasm-pack build --target web crates/zparse-wasm
+```
+
+Run WASM tests in Node:
+
+```bash
+wasm-pack test --node crates/zparse-wasm
+```
+
+Use from JavaScript:
+
+```js
+import init, { convert, parse, detect_format } from "./pkg/zparse_wasm.js";
+
+await init();
+
+const toml = convert('{"name":"zparse"}', "json", "toml");
+const json = parse("name = \"zparse\"", "toml");
+const fmt = detect_format("data.csv"); // "csv"
+```
+
 ## Contribution
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and workflow details.

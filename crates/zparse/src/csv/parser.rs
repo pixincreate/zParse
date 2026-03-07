@@ -28,32 +28,35 @@ impl<'a> Parser<'a> {
                 .first()
                 .ok_or_else(|| invalid_csv("csv has no header row"))?,
         );
-        let mut rows = Array::new();
 
-        for record in records.into_iter().skip(1) {
-            if is_blank_record(&record) {
-                continue;
-            }
+        let rows: Array = records
+            .into_iter()
+            .skip(1)
+            .filter(|r| !is_blank_record(r))
+            .map(|record| {
+                let mut base: Object = headers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, h)| {
+                        let v = record.get(i).map(infer_field_value).unwrap_or(Value::Null);
+                        (h.clone(), v)
+                    })
+                    .collect();
 
-            let mut obj = Object::new();
+                let overflow: Object = record
+                    .iter()
+                    .enumerate()
+                    .skip(headers.len())
+                    .map(|(i, f)| (format!("column_{}", i + 1), infer_field_value(f)))
+                    .collect();
 
-            for (index, header) in headers.iter().enumerate() {
-                let value = record
-                    .get(index)
-                    .map(infer_field_value)
-                    .unwrap_or(Value::Null);
-                obj.insert(header.clone(), value);
-            }
+                overflow.into_iter().for_each(|(k, v)| {
+                    base.insert(k, v);
+                });
 
-            if record.len() > headers.len() {
-                for (index, field) in record.iter().enumerate().skip(headers.len()) {
-                    let header = format!("column_{}", index + 1);
-                    obj.insert(header, infer_field_value(field));
-                }
-            }
-
-            rows.push(Value::Object(obj));
-        }
+                Value::Object(base)
+            })
+            .collect();
 
         Ok(Value::Array(rows))
     }
@@ -220,27 +223,32 @@ impl<'a> Parser<'a> {
 
 fn normalize_headers(headers: &[Field]) -> Vec<String> {
     let mut names = Vec::with_capacity(headers.len());
-
-    for (index, header) in headers.iter().enumerate() {
-        let mut name = if header.quoted {
+    for (i, header) in headers.iter().enumerate() {
+        let name = if header.quoted {
             header.value.clone()
         } else {
             header.value.trim().to_string()
         };
 
-        if name.is_empty() {
-            name = format!("column_{}", index + 1);
-        }
+        let name = if name.is_empty() {
+            format!("column_{}", i + 1)
+        } else {
+            name
+        };
 
-        let mut candidate = name.clone();
-        let mut suffix = 2usize;
-        while names.iter().any(|existing| existing == &candidate) {
-            candidate = format!("{name}_{suffix}");
-            suffix += 1;
-        }
-        names.push(candidate);
+        let unique_name = (1..)
+            .map(|s| {
+                if s == 1 {
+                    name.clone()
+                } else {
+                    format!("{name}_{s}")
+                }
+            })
+            .find(|n| !names.contains(n))
+            .unwrap_or(name);
+
+        names.push(unique_name);
     }
-
     names
 }
 

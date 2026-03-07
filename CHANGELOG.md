@@ -9,6 +9,15 @@
 - Add JSONC-compatible conversion paths by accepting comments/trailing commas on JSON input and normalizing output
 - Add `zparse-wasm` crate with browser/Node-compatible `convert`, `parse`, and `detect_format` APIs via `wasm-bindgen`
 
+### Refactor
+
+- Migrate inline tests to dedicated integration test suite for better organization and faster incremental builds
+
+### Chore
+
+- Update toml requirement from 0.9.11 to 1.0.2
+- Add workflow dispatch for manual CI triggers
+
 ### CI
 
 - Add dedicated WASM CI job using `wasm-pack` build and Node-based WASM tests

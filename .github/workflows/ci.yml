@@ -139,7 +139,10 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Install wasm-pack
-        run: cargo install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Run Clippy (wasm)
+        run: cargo clippy -p zparse-wasm --target wasm32-unknown-unknown --all-features --all-targets
 
       - name: Build WASM
         run: wasm-pack build --target web crates/zparse-wasm

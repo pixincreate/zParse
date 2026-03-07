@@ -30,11 +30,51 @@ struct JsPos {
 
 impl From<zparse::Error> for JsError {
     fn from(e: zparse::Error) -> Self {
+        let span = {
+            let span = e.span();
+            if span == zparse::Span::empty() {
+                None
+            } else {
+                Some(JsSpan {
+                    start: JsPos {
+                        offset: span.start.offset,
+                        line: span.start.line,
+                        col: span.start.col,
+                    },
+                    end: JsPos {
+                        offset: span.end.offset,
+                        line: span.end.line,
+                        col: span.end.col,
+                    },
+                })
+            }
+        };
+
         Self {
-            kind: format!("{:?}", e.kind()),
+            kind: stable_error_kind(e.kind()).to_string(),
             message: e.message().to_string(),
-            span: None,
+            span,
         }
+    }
+}
+
+fn stable_error_kind(kind: &zparse::ErrorKind) -> &'static str {
+    match kind {
+        zparse::ErrorKind::InvalidEscapeSequence => "InvalidEscapeSequence",
+        zparse::ErrorKind::InvalidUnicodeEscape => "InvalidUnicodeEscape",
+        zparse::ErrorKind::UnterminatedString => "UnterminatedString",
+        zparse::ErrorKind::InvalidNumber => "InvalidNumber",
+        zparse::ErrorKind::InvalidToken => "InvalidToken",
+        zparse::ErrorKind::Expected { .. } => "Expected",
+        zparse::ErrorKind::TrailingComma => "TrailingComma",
+        zparse::ErrorKind::MissingComma => "MissingComma",
+        zparse::ErrorKind::DuplicateKey { .. } => "DuplicateKey",
+        zparse::ErrorKind::InvalidKey => "InvalidKey",
+        zparse::ErrorKind::InvalidDatetime => "InvalidDatetime",
+        zparse::ErrorKind::InvalidInlineTable => "InvalidInlineTable",
+        zparse::ErrorKind::InvalidArray => "InvalidArray",
+        zparse::ErrorKind::MaxDepthExceeded { .. } => "MaxDepthExceeded",
+        zparse::ErrorKind::MaxSizeExceeded { .. } => "MaxSizeExceeded",
     }
 }
 
@@ -72,7 +112,7 @@ pub fn convert(input: &str, from: &str, to: &str) -> Result<String, JsValue> {
 
 /// Parse content to JSON
 /// - content: the input string
-/// - format: source format ("json", "toml", "yaml")
+/// - format: source format ("json", "toml", "yaml", "xml")
 /// Returns JSON string or throws error
 #[wasm_bindgen]
 pub fn parse(content: &str, format: &str) -> Result<String, JsValue> {
@@ -82,13 +122,15 @@ pub fn parse(content: &str, format: &str) -> Result<String, JsValue> {
         Format::Json => zparse::convert::convert(content, Format::Json, Format::Json),
         Format::Toml => zparse::convert::convert(content, Format::Toml, Format::Json),
         Format::Yaml => zparse::convert::convert(content, Format::Yaml, Format::Json),
-        Format::Xml => zparse::convert::convert(content, Format::Xml, Format::Json).map_err(|_| {
-            zparse::Error::with_message(
-                zparse::ErrorKind::InvalidToken,
-                zparse::Span::empty(),
-                "XML parse not supported, use convert() instead".to_string(),
-            )
-        }),
+        Format::Xml => {
+            return Err(serialize_to_js(&JsError::from(
+                zparse::Error::with_message(
+                    zparse::ErrorKind::InvalidToken,
+                    zparse::Span::empty(),
+                    "XML parse is not supported in parse(); use convert() instead".to_string(),
+                ),
+            )));
+        }
     }
     .map_err(|e| serialize_to_js(&JsError::from(e)))
 }
@@ -205,7 +247,6 @@ active: false
         }
 
         #[wasm_bindgen_test]
-        #[ignore] // Known issue: XML conversion panics instead of returning error
         fn parse_xml_not_supported() {
             let input = r#"<root><item>test</item></root>"#;
             let result = parse(input, "xml");

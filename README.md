@@ -41,6 +41,11 @@ Top-level flags (`--parse` / `--convert`) mirror the subcommands and still accep
 Root-level flags cannot be combined with subcommands.
 By default, successful commands print `ok`. Use `--print-output` to write the input/converted content instead.
 
+JSONC notes:
+- `jsonc` is supported as an **input** format (`--from jsonc` or `.jsonc` extension).
+- Output formats remain `json`, `toml`, `yaml`, or `xml` (no `--to jsonc`).
+- `jsonc -> json` outputs strict JSON (comments and trailing commas are removed).
+
 ```bash
 # Auto-detect format from file extension and validate
 zparse --parse input.json
@@ -80,6 +85,9 @@ zparse convert --from json --to toml --output output.toml input.json
 
 # Convert permissive JSON (comments + trailing commas) to YAML
 zparse convert --from json --to yaml --json-comments --json-trailing-commas input.json
+
+# Convert JSONC to strict JSON (comments/trailing commas removed)
+zparse convert --from jsonc --to json input.jsonc --print-output
 ```
 
 #### Quick usage rules
@@ -87,6 +95,7 @@ zparse convert --from json --to yaml --json-comments --json-trailing-commas inpu
 - Use either a subcommand (`parse`/`convert`) or a top-level flag (`--parse`/`--convert`), not both.
 - `--to` is required for convert.
 - `--from` is optional when an input file path is provided (auto-detects by extension).
+- `.jsonc` files auto-enable JSON comments and trailing commas during parsing.
 - When reading from stdin, you must pass `--from`.
 
 ### API

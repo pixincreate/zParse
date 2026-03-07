@@ -36,6 +36,12 @@ pub fn convert_with_options(
     options: &ConvertOptions,
 ) -> Result<String> {
     if from == to {
+        if from == Format::Json
+            && (options.json.allow_comments || options.json.allow_trailing_commas)
+        {
+            let value = parse_value(input, from, options)?;
+            return serialize_value(&value, to);
+        }
         return Ok(input.to_string());
     }
 

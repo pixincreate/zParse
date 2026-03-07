@@ -110,13 +110,42 @@ jobs:
           save-if: ${{ github.event_name == 'push' }}
 
       - name: Run tests
-        run: cargo test --workspace --all-features --all-targets
+        run: cargo test --workspace --all-features --all-targets --exclude zparse-wasm
 
       - name: Run tests (release)
-        run: cargo test --workspace --release --all-features --all-targets
+        run: cargo test --workspace --release --all-features --all-targets --exclude zparse-wasm
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-features --all-targets
+        run: cargo clippy --workspace --all-features --all-targets --exclude zparse-wasm
+
+  wasm:
+    name: wasm-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM
+        run: wasm-pack build --target web crates/zparse-wasm
+
+      - name: Run WASM tests
+        run: wasm-pack test --node crates/zparse-wasm
 
   docs:
     name: documentation

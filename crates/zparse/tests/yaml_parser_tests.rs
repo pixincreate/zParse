@@ -120,3 +120,25 @@ fn test_parse_complex_yaml_document() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_parse_nested_quoted_scalar_block_value() -> Result<()> {
+    let input = b"key:\n  \"quoted value\"\n";
+    let mut parser = Parser::new(input);
+    let value = parser.parse()?;
+
+    if let Value::Object(obj) = value {
+        ensure_eq(
+            obj.get("key"),
+            Some(&Value::String("quoted value".to_string())),
+        )?;
+    } else {
+        return Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected object".to_string(),
+        ));
+    }
+
+    Ok(())
+}

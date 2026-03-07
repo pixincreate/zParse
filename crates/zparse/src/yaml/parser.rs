@@ -123,7 +123,9 @@ impl<'a> Parser<'a> {
         let token = self.peek_non_newline()?;
         match token.kind {
             YamlTokenKind::Dash => self.parse_sequence(),
-            YamlTokenKind::Scalar(_) => self.parse_mapping_or_scalar(),
+            YamlTokenKind::Scalar(_) | YamlTokenKind::QuotedScalar(_) => {
+                self.parse_mapping_or_scalar()
+            }
             YamlTokenKind::LeftBracket => self.parse_flow_sequence(),
             YamlTokenKind::LeftBrace => self.parse_flow_mapping(),
             _ => Err(Error::with_message(
@@ -340,7 +342,7 @@ impl<'a> Parser<'a> {
 
             let next = self.peek_non_newline()?;
             match next.kind {
-                YamlTokenKind::Scalar(_) => continue,
+                YamlTokenKind::Scalar(_) | YamlTokenKind::QuotedScalar(_) => continue,
                 YamlTokenKind::Dedent | YamlTokenKind::Eof => break,
                 YamlTokenKind::Dash => break,
                 _ => break,

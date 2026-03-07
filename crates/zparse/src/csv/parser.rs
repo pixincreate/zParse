@@ -1,3 +1,4 @@
+use crate::csv::infer_primitive_value;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::value::{Array, Object, Value};
 
@@ -253,41 +254,12 @@ fn normalize_headers(headers: &[Field]) -> Vec<String> {
 }
 
 fn infer_field_value(field: &Field) -> Value {
-    if !field.quoted {
-        let trimmed = field.value.trim();
-        if trimmed.is_empty() {
-            return Value::Null;
-        }
-
-        if trimmed.eq_ignore_ascii_case("null") {
-            return Value::Null;
-        }
-
-        if trimmed.eq_ignore_ascii_case("true") {
-            return Value::Bool(true);
-        }
-
-        if trimmed.eq_ignore_ascii_case("false") {
-            return Value::Bool(false);
-        }
-
-        if trimmed.parse::<i64>().is_ok()
-            && let Ok(number) = trimmed.parse::<f64>()
-            && number.is_finite()
-        {
-            return Value::Number(number);
-        }
-
-        if let Ok(float) = trimmed.parse::<f64>()
-            && float.is_finite()
-        {
-            return Value::Number(float);
-        }
-
-        return Value::String(trimmed.to_string());
+    if field.quoted {
+        return Value::String(field.value.clone());
     }
 
-    Value::String(field.value.clone())
+    let trimmed = field.value.trim();
+    infer_primitive_value(trimmed).unwrap_or_else(|| Value::String(trimmed.to_string()))
 }
 
 fn is_blank_record(record: &[Field]) -> bool {

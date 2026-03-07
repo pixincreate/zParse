@@ -1,6 +1,7 @@
 //! Format conversion utilities
 
 use crate::csv::Parser as CsvParser;
+use crate::csv::infer_primitive_value;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;
@@ -408,36 +409,9 @@ fn xml_leaf_to_value(element: &XmlElement) -> Result<Value> {
     if element.children.len() == 1 {
         if let Some(XmlContent::Text(text)) = element.children.first() {
             let trimmed = text.trim();
-            if trimmed.is_empty() {
-                return Ok(Value::Null);
-            }
-
-            if trimmed.eq_ignore_ascii_case("null") {
-                return Ok(Value::Null);
-            }
-
-            if trimmed.eq_ignore_ascii_case("true") {
-                return Ok(Value::Bool(true));
-            }
-
-            if trimmed.eq_ignore_ascii_case("false") {
-                return Ok(Value::Bool(false));
-            }
-
-            if trimmed.parse::<i64>().is_ok()
-                && let Ok(number) = trimmed.parse::<f64>()
-                && number.is_finite()
-            {
-                return Ok(Value::Number(number));
-            }
-
-            if let Ok(float) = trimmed.parse::<f64>()
-                && float.is_finite()
-            {
-                return Ok(Value::Number(float));
-            }
-
-            return Ok(Value::String(text.clone()));
+            return Ok(
+                infer_primitive_value(trimmed).unwrap_or_else(|| Value::String(text.clone()))
+            );
         }
     }
 

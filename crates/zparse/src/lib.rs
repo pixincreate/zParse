@@ -36,10 +36,12 @@ pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 /// Detect input format from a file path extension (case-insensitive).
 ///
 /// Returns None if the path has no extension or the extension is unsupported.
+/// Note: `.jsonc` files are detected as `Format::Json` (JSONC is JSON with config flags).
 pub fn detect_format_from_path(path: impl AsRef<std::path::Path>) -> Option<Format> {
     let ext = path.as_ref().extension()?.to_str()?;
     match ext.to_ascii_lowercase().as_str() {
         "json" => Some(Format::Json),
+        "jsonc" => Some(Format::Json),
         "toml" => Some(Format::Toml),
         "yaml" | "yml" => Some(Format::Yaml),
         "xml" => Some(Format::Xml),

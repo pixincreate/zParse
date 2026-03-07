@@ -17,6 +17,7 @@ pub enum YamlTokenKind {
     RightBrace,
     Comma,
     Scalar(String),
+    QuotedScalar(String),
     Newline,
     Eof,
 }
@@ -260,11 +261,17 @@ fn lex_value_tokens(line: &str) -> Result<Vec<YamlToken>> {
             }
             '"' => {
                 let scalar = parse_quoted(&mut chars, '"')?;
-                tokens.push(YamlToken::new(YamlTokenKind::Scalar(scalar), Span::empty()));
+                tokens.push(YamlToken::new(
+                    YamlTokenKind::QuotedScalar(scalar),
+                    Span::empty(),
+                ));
             }
             '\'' => {
                 let scalar = parse_quoted(&mut chars, '\'')?;
-                tokens.push(YamlToken::new(YamlTokenKind::Scalar(scalar), Span::empty()));
+                tokens.push(YamlToken::new(
+                    YamlTokenKind::QuotedScalar(scalar),
+                    Span::empty(),
+                ));
             }
             _ => {
                 let mut value = String::new();

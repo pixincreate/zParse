@@ -2,11 +2,11 @@
 
 ## Introduction
 
-zParse is a high-performance Rust library and toolchain for parsing and converting JSON, TOML, YAML, and XML. It ships as a library, a CLI, and an HTTP API so you can integrate it in other Rust projects or expose it to a frontend.
+zParse is a high-performance Rust library and toolchain for parsing and converting JSON, CSV, TOML, YAML, and XML. It ships as a library, a CLI, and an HTTP API so you can integrate it in other Rust projects or expose it to a frontend.
 
 ## Features
 
-- Native parsers for JSON, TOML (with native datetime types), YAML 1.2, and XML
+- Native parsers for JSON, CSV, TOML (with native datetime types), YAML 1.2, and XML
 - Streaming/event-based parsing with depth and size limits
 - Format conversion between all supported formats
 - CLI for conversion with stdin/stdout support
@@ -17,12 +17,13 @@ zParse is a high-performance Rust library and toolchain for parsing and converti
 ### Library
 
 ```rust
-use zparse::{from_str, from_toml_str, from_yaml_str, from_xml_str};
+use zparse::{from_csv_str, from_str, from_toml_str, from_yaml_str, from_xml_str};
 
 let json_value = from_str(r#"{"name": "zparse"}"#)?;
 let toml_value = from_toml_str("name = \"zparse\"\n")?;
 let yaml_value = from_yaml_str("name: zparse\n")?;
 let xml_doc = from_xml_str("<root><name>zparse</name></root>")?;
+let csv_value = from_csv_str("name,age\nzparse,2\n")?;
 # Ok::<(), zparse::Error>(())
 ```
 
@@ -32,6 +33,7 @@ let xml_doc = from_xml_str("<root><name>zparse</name></root>")?;
 use zparse::{convert, Format};
 
 let out = convert(r#"{"name":"zparse"}"#, Format::Json, Format::Toml)?;
+let csv_out = convert(r#"[{"name":"zparse","age":2}]"#, Format::Json, Format::Csv)?;
 # Ok::<(), zparse::Error>(())
 ```
 
@@ -68,6 +70,9 @@ zparse parse --from json --print-output input.json
 # Convert JSON to TOML and print "ok" on success
 zparse convert --from json --to toml input.json
 
+# Convert CSV to JSON
+zparse convert --from csv --to json input.csv
+
 # Convert TOML to YAML with format inference for the input
 zparse convert --to yaml input.toml
 
@@ -88,6 +93,9 @@ zparse convert --from json --to yaml --json-comments --json-trailing-commas inpu
 
 # Convert JSONC to strict JSON (comments/trailing commas removed)
 zparse convert --from jsonc --to json input.jsonc --print-output
+
+# Convert JSONC input to CSV (comments/trailing commas are accepted and normalized)
+zparse convert --from json --to csv --json-comments --json-trailing-commas input.jsonc
 ```
 
 #### Quick usage rules

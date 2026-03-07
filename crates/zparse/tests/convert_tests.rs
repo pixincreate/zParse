@@ -51,3 +51,13 @@ fn test_xml_to_json() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+#[test]
+fn test_csv_to_json() -> Result<(), Box<dyn std::error::Error>> {
+    let csv_input = "name,age\nAlice,30\n";
+    let json_output = convert(csv_input, Format::Csv, Format::Json)?;
+    if !json_output.contains("\"name\":\"Alice\"") {
+        return Err("missing name in json output".into());
+    }
+    Ok(())
+}

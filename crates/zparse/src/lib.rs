@@ -85,11 +85,13 @@ pub fn from_str_with_config(s: &str, config: Config) -> Result<Value> {
     parser.parse_value()
 }
 
+/// Parse CSV from string
 pub fn from_csv_str(s: &str) -> Result<Value> {
     let mut parser = CsvParser::new(s.as_bytes());
     parser.parse()
 }
 
+/// Parse CSV from bytes
 pub fn from_csv_bytes(bytes: &[u8]) -> Result<Value> {
     let mut parser = CsvParser::new(bytes);
     parser.parse()

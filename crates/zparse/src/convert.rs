@@ -72,20 +72,20 @@ pub fn convert_with_options(
         }
         _ => {
             let value = parse_value(input, from, options)?;
-            let value = normalize_for_target(value, to);
+            let value = normalize_for_target(value, from, to);
             serialize_value(&value, to)
         }
     }
 }
 
-fn normalize_for_target(value: Value, to: Format) -> Value {
-    match (to, value) {
-        (Format::Toml, Value::Array(rows)) => {
+fn normalize_for_target(value: Value, from: Format, to: Format) -> Value {
+    match (from, to, value) {
+        (Format::Csv, Format::Toml, Value::Array(rows)) => {
             let mut root = Object::new();
             root.insert("rows", Value::Array(rows));
             Value::Object(root)
         }
-        (_, value) => value,
+        (_, _, value) => value,
     }
 }
 

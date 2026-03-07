@@ -270,3 +270,33 @@ fn csv_to_toml_null_is_valid_toml() -> Result<(), Box<dyn std::error::Error>> {
     zparse::from_toml_str(&toml)?;
     Ok(())
 }
+
+#[test]
+fn csv_empty_input_returns_empty_array() -> Result<(), Box<dyn std::error::Error>> {
+    let value = zparse::from_csv_str("")?;
+    let arr = value.as_array().ok_or("expected array")?;
+    expect_true(arr.is_empty(), "empty input should return empty array")?;
+    Ok(())
+}
+
+#[test]
+fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Error>> {
+    let value = zparse::from_csv_str(" name , age , active \r\n")?;
+    let arr = value.as_array().ok_or("expected array")?;
+    expect_true(
+        arr.is_empty(),
+        "CSV with whitespace/CRLF should return empty array",
+    )?;
+    Ok(())
+}
+
+#[test]
+fn csv_whitespace_only_returns_empty_array() -> Result<(), Box<dyn std::error::Error>> {
+    let value = zparse::from_csv_str("   \n  \n  \n")?;
+    let arr = value.as_array().ok_or("expected array")?;
+    expect_true(
+        arr.is_empty(),
+        "whitespace-only CSV should return empty array",
+    )?;
+    Ok(())
+}

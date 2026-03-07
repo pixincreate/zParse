@@ -22,6 +22,7 @@ struct ConvertRequest {
 enum InputFormat {
     Json,
     Jsonc,
+    Csv,
     Toml,
     Yaml,
     Xml,

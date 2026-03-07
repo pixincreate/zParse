@@ -1,7 +1,7 @@
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
@@ -66,6 +66,7 @@ impl From<OutputFormatArg> for zparse::Format {
     fn from(value: OutputFormatArg) -> Self {
         match value {
             OutputFormatArg::Json => zparse::Format::Json,
+            OutputFormatArg::Csv => zparse::Format::Csv,
             OutputFormatArg::Toml => zparse::Format::Toml,
             OutputFormatArg::Yaml => zparse::Format::Yaml,
             OutputFormatArg::Xml => zparse::Format::Xml,

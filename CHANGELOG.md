@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Feat
+
+- Add native CSV parsing with type inference for null, boolean, and numeric values
+- Add bidirectional conversion support for CSV with JSON, TOML, YAML, and XML
+- Add JSONC-compatible conversion paths by accepting comments/trailing commas on JSON input and normalizing output
+
+### Fix
+
+- Fix YAML quoted scalar coercion so ambiguous quoted values (for example `"InF"`) remain strings instead of being parsed as infinity
+
 ## [2.0.5] - 2026-02-09
 
 ### Feat

@@ -123,7 +123,9 @@ impl<'a> Parser<'a> {
         let token = self.peek_non_newline()?;
         match token.kind {
             YamlTokenKind::Dash => self.parse_sequence(),
-            YamlTokenKind::Scalar(_) => self.parse_mapping_or_scalar(),
+            YamlTokenKind::Scalar(_) | YamlTokenKind::QuotedScalar(_) => {
+                self.parse_mapping_or_scalar()
+            }
             YamlTokenKind::LeftBracket => self.parse_flow_sequence(),
             YamlTokenKind::LeftBrace => self.parse_flow_mapping(),
             _ => Err(Error::with_message(
@@ -201,6 +203,7 @@ impl<'a> Parser<'a> {
                     Ok(parse_scalar_value(&value))
                 }
             }
+            YamlTokenKind::QuotedScalar(value) => Ok(Value::String(value)),
             YamlTokenKind::LeftBracket => self.parse_flow_sequence(),
             YamlTokenKind::LeftBrace => self.parse_flow_mapping(),
             YamlTokenKind::Indent => {
@@ -238,6 +241,7 @@ impl<'a> Parser<'a> {
                     Ok(parse_scalar_value(&value))
                 }
             }
+            YamlTokenKind::QuotedScalar(value) => Ok(Value::String(value)),
             _ => {
                 self.buffered = Some(first);
                 self.parse_mapping()
@@ -255,7 +259,7 @@ impl<'a> Parser<'a> {
             } else {
                 let token = self.next_non_newline()?;
                 match token.kind {
-                    YamlTokenKind::Scalar(value) => value,
+                    YamlTokenKind::Scalar(value) | YamlTokenKind::QuotedScalar(value) => value,
                     YamlTokenKind::Dedent | YamlTokenKind::Eof => {
                         self.buffered = Some(token);
                         break;
@@ -286,6 +290,7 @@ impl<'a> Parser<'a> {
             let token = self.next_token()?;
             let value = match token.kind {
                 YamlTokenKind::Scalar(value) => parse_scalar_value(&value),
+                YamlTokenKind::QuotedScalar(value) => Value::String(value),
                 YamlTokenKind::Newline => {
                     let next = self.next_non_newline()?;
                     match next.kind {
@@ -337,7 +342,7 @@ impl<'a> Parser<'a> {
 
             let next = self.peek_non_newline()?;
             match next.kind {
-                YamlTokenKind::Scalar(_) => continue,
+                YamlTokenKind::Scalar(_) | YamlTokenKind::QuotedScalar(_) => continue,
                 YamlTokenKind::Dedent | YamlTokenKind::Eof => break,
                 YamlTokenKind::Dash => break,
                 _ => break,
@@ -381,6 +386,9 @@ impl<'a> Parser<'a> {
                 YamlTokenKind::Scalar(value) => {
                     items.push(parse_scalar_value(&value));
                 }
+                YamlTokenKind::QuotedScalar(value) => {
+                    items.push(Value::String(value));
+                }
                 _ => {
                     return Err(Error::with_message(
                         ErrorKind::InvalidToken,
@@ -404,7 +412,7 @@ impl<'a> Parser<'a> {
             match token.kind {
                 YamlTokenKind::RightBrace => break,
                 YamlTokenKind::Comma => continue,
-                YamlTokenKind::Scalar(key) => {
+                YamlTokenKind::Scalar(key) | YamlTokenKind::QuotedScalar(key) => {
                     let colon = self.next_non_newline()?;
                     if colon.kind != YamlTokenKind::Colon {
                         return Err(Error::with_message(
@@ -417,6 +425,7 @@ impl<'a> Parser<'a> {
                     let value_token = self.next_non_newline()?;
                     let value = match value_token.kind {
                         YamlTokenKind::Scalar(value) => parse_scalar_value(&value),
+                        YamlTokenKind::QuotedScalar(value) => Value::String(value),
                         YamlTokenKind::LeftBracket => self.parse_flow_sequence()?,
                         YamlTokenKind::LeftBrace => self.parse_flow_mapping()?,
                         _ => {
@@ -488,11 +497,21 @@ fn parse_scalar_value(value: &str) -> Value {
         return Value::from(int_val);
     }
 
-    if let Ok(float_val) = trimmed.parse::<f64>() {
+    if !is_special_infinity_or_nan(trimmed)
+        && let Ok(float_val) = trimmed.parse::<f64>()
+    {
         return Value::Number(float_val);
     }
 
     Value::String(trimmed.to_string())
+}
+
+fn is_special_infinity_or_nan(input: &str) -> bool {
+    let lower = input.trim().to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "inf" | "+inf" | "-inf" | ".inf" | "+.inf" | "-.inf" | "nan" | ".nan"
+    )
 }
 
 fn emit_events(value: &Value, events: &mut VecDeque<Event>) {

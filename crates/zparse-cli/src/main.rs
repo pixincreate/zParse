@@ -8,9 +8,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[command(
     name = "zparse",
     version,
-    about = "Parse and convert JSON/TOML/YAML/XML",
+    about = "Parse and convert JSON/JSONC/CSV/TOML/YAML/XML",
     args_conflicts_with_subcommands = true,
-    after_help = "Examples:\n  zparse --parse input.json --print-output\n  zparse --convert input.json --from json --to toml\n  zparse convert --from json --to toml input.json\n  zparse parse --from json input.json\n  cat input.xml | zparse parse --from xml"
+    after_help = "Examples:\n  zparse --parse input.json --print-output\n  zparse --convert input.json --from json --to toml\n  zparse convert --from csv --to json input.csv\n  zparse parse --from json input.json\n  cat input.xml | zparse parse --from xml"
 )]
 struct Args {
     #[command(subcommand)]
@@ -21,10 +21,10 @@ struct Args {
     /// Convert between formats (top-level mode)
     #[arg(long, value_name = "INPUT", num_args = 0..=1, default_missing_value = "-", conflicts_with = "parse")]
     convert: Option<PathBuf>,
-    /// Input format (json, jsonc, toml, yaml, xml)
+    /// Input format (json, jsonc, csv, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
-    /// Output format (json, toml, yaml, xml)
+    /// Output format (json, csv, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     to: Option<OutputFormatArg>,
     /// Output file (defaults to stdout)
@@ -54,6 +54,7 @@ impl From<FormatArg> for zparse::Format {
         match value {
             FormatArg::Json => zparse::Format::Json,
             FormatArg::Jsonc => zparse::Format::Json,
+            FormatArg::Csv => zparse::Format::Csv,
             FormatArg::Toml => zparse::Format::Toml,
             FormatArg::Yaml => zparse::Format::Yaml,
             FormatArg::Xml => zparse::Format::Xml,
@@ -65,6 +66,7 @@ impl From<OutputFormatArg> for zparse::Format {
     fn from(value: OutputFormatArg) -> Self {
         match value {
             OutputFormatArg::Json => zparse::Format::Json,
+            OutputFormatArg::Csv => zparse::Format::Csv,
             OutputFormatArg::Toml => zparse::Format::Toml,
             OutputFormatArg::Yaml => zparse::Format::Yaml,
             OutputFormatArg::Xml => zparse::Format::Xml,
@@ -77,7 +79,7 @@ struct ParseArgs {
     /// Input file (defaults to stdin)
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
-    /// Input format (json, jsonc, toml, yaml, xml)
+    /// Input format (json, jsonc, csv, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
     /// Output file (defaults to stdout)
@@ -99,10 +101,10 @@ struct ConvertArgs {
     /// Input file (defaults to stdin)
     #[arg(value_name = "INPUT")]
     input: Option<PathBuf>,
-    /// Input format (json, jsonc, toml, yaml, xml)
+    /// Input format (json, jsonc, csv, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     from: Option<FormatArg>,
-    /// Output format (json, toml, yaml, xml)
+    /// Output format (json, csv, toml, yaml, xml)
     #[arg(short, long, value_enum)]
     to: OutputFormatArg,
     /// Output file (defaults to stdout)
@@ -123,6 +125,7 @@ struct ConvertArgs {
 enum FormatArg {
     Json,
     Jsonc,
+    Csv,
     Toml,
     #[value(alias = "yml")]
     Yaml,
@@ -132,6 +135,7 @@ enum FormatArg {
 #[derive(Clone, Debug, ValueEnum)]
 enum OutputFormatArg {
     Json,
+    Csv,
     Toml,
     #[value(alias = "yml")]
     Yaml,
@@ -188,6 +192,10 @@ fn run_parse(args: ParseArgs) -> Result<()> {
         zparse::Format::Json => {
             let mut parser = zparse::json::Parser::with_config(input_data.as_bytes(), json_config);
             parser.parse_value()?;
+        }
+        zparse::Format::Csv => {
+            let mut parser = zparse::csv::Parser::new(input_data.as_bytes());
+            parser.parse()?;
         }
         zparse::Format::Toml => {
             let mut parser = zparse::toml::Parser::new(input_data.as_bytes());
@@ -288,6 +296,7 @@ fn resolve_format(
                 } else {
                     zparse::detect_format_from_path(path).map(|fmt| match fmt {
                         zparse::Format::Json => FormatArg::Json,
+                        zparse::Format::Csv => FormatArg::Csv,
                         zparse::Format::Toml => FormatArg::Toml,
                         zparse::Format::Yaml => FormatArg::Yaml,
                         zparse::Format::Xml => FormatArg::Xml,

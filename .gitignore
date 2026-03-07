@@ -32,6 +32,9 @@ dist/
 # Docs
 docs/
 
+# Local planning artifacts
+.sisyphus/
+
 # Environment variables
 .envrc
 .env

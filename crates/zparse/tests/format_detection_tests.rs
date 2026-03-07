@@ -8,6 +8,8 @@ fn detect_format_from_path_supports_extensions() {
     assert_eq!(detect_format_from_path("input.yaml"), Some(Format::Yaml));
     assert_eq!(detect_format_from_path("input.yml"), Some(Format::Yaml));
     assert_eq!(detect_format_from_path("input.xml"), Some(Format::Xml));
+    assert_eq!(detect_format_from_path("input.csv"), Some(Format::Csv));
+    assert_eq!(detect_format_from_path("input.jsonc"), Some(Format::Json));
 }
 
 #[test]

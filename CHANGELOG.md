@@ -7,6 +7,11 @@
 - Add native CSV parsing with type inference for null, boolean, and numeric values
 - Add bidirectional conversion support for CSV with JSON, TOML, YAML, and XML
 - Add JSONC-compatible conversion paths by accepting comments/trailing commas on JSON input and normalizing output
+- Add `zparse-wasm` crate with browser/Node-compatible `convert`, `parse`, and `detect_format` APIs via `wasm-bindgen`
+
+### CI
+
+- Add dedicated WASM CI job using `wasm-pack` build and Node-based WASM tests
 
 ### Fix
 

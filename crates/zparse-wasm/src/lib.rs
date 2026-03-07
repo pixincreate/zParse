@@ -98,8 +98,8 @@ fn serialize_to_js<T: Serialize>(value: &T) -> JsValue {
 
 /// Convert between formats
 /// - input: the input string
-/// - from: source format ("json", "toml", "yaml", "xml")
-/// - to: target format ("json", "toml", "yaml", "xml")
+/// - from: source format ("json", "csv", "toml", "yaml", "xml")
+/// - to: target format ("json", "csv", "toml", "yaml", "xml")
 /// Returns converted string or throws error
 #[wasm_bindgen]
 pub fn convert(input: &str, from: &str, to: &str) -> Result<String, JsValue> {
@@ -112,7 +112,7 @@ pub fn convert(input: &str, from: &str, to: &str) -> Result<String, JsValue> {
 
 /// Parse content to JSON
 /// - content: the input string
-/// - format: source format ("json", "toml", "yaml", "xml")
+/// - format: source format ("json", "csv", "toml", "yaml", "xml")
 /// Returns JSON string or throws error
 #[wasm_bindgen]
 pub fn parse(content: &str, format: &str) -> Result<String, JsValue> {
@@ -120,6 +120,7 @@ pub fn parse(content: &str, format: &str) -> Result<String, JsValue> {
 
     match fmt {
         Format::Json => zparse::convert::convert(content, Format::Json, Format::Json),
+        Format::Csv => zparse::convert::convert(content, Format::Csv, Format::Json),
         Format::Toml => zparse::convert::convert(content, Format::Toml, Format::Json),
         Format::Yaml => zparse::convert::convert(content, Format::Yaml, Format::Json),
         Format::Xml => {
@@ -147,6 +148,7 @@ type Format = zparse::convert::Format;
 fn parse_format(s: &str) -> Result<Format, JsError> {
     match s.to_lowercase().as_str() {
         "json" => Ok(Format::Json),
+        "csv" => Ok(Format::Csv),
         "toml" => Ok(Format::Toml),
         "yaml" => Ok(Format::Yaml),
         "xml" => Ok(Format::Xml),
@@ -172,6 +174,16 @@ mod tests {
             let output = result.unwrap();
             assert!(output.contains("name"));
             assert!(output.contains("John"));
+        }
+
+        #[wasm_bindgen_test]
+        fn csv_to_json() {
+            let input = "name,age\nJane,20\n";
+            let result = convert(input, "csv", "json");
+            assert!(result.is_ok());
+            let output = result.unwrap();
+            assert!(output.contains("Jane"));
+            assert!(output.contains("20"));
         }
 
         #[wasm_bindgen_test]
@@ -247,6 +259,16 @@ active: false
         }
 
         #[wasm_bindgen_test]
+        fn parse_csv() {
+            let input = "name,age\nSam,21\n";
+            let result = parse(input, "csv");
+            assert!(result.is_ok());
+            let output = result.unwrap();
+            assert!(output.contains("Sam"));
+            assert!(output.contains("21"));
+        }
+
+        #[wasm_bindgen_test]
         fn parse_xml_not_supported() {
             let input = r#"<root><item>test</item></root>"#;
             let result = parse(input, "xml");
@@ -285,6 +307,11 @@ active: false
         #[wasm_bindgen_test]
         fn detect_json() {
             assert_eq!(detect_format("file.json"), Some("json".to_string()));
+        }
+
+        #[wasm_bindgen_test]
+        fn detect_csv() {
+            assert_eq!(detect_format("data.csv"), Some("csv".to_string()));
         }
 
         #[wasm_bindgen_test]

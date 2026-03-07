@@ -31,6 +31,7 @@ enum InputFormat {
 #[serde(rename_all = "lowercase")]
 enum OutputFormat {
     Json,
+    Csv,
     Toml,
     Yaml,
     Xml,
@@ -41,6 +42,7 @@ impl From<InputFormat> for zparse::Format {
         match value {
             InputFormat::Json => zparse::Format::Json,
             InputFormat::Jsonc => zparse::Format::Json,
+            InputFormat::Csv => zparse::Format::Csv,
             InputFormat::Toml => zparse::Format::Toml,
             InputFormat::Yaml => zparse::Format::Yaml,
             InputFormat::Xml => zparse::Format::Xml,
@@ -52,6 +54,7 @@ impl From<OutputFormat> for zparse::Format {
     fn from(value: OutputFormat) -> Self {
         match value {
             OutputFormat::Json => zparse::Format::Json,
+            OutputFormat::Csv => zparse::Format::Csv,
             OutputFormat::Toml => zparse::Format::Toml,
             OutputFormat::Yaml => zparse::Format::Yaml,
             OutputFormat::Xml => zparse::Format::Xml,
@@ -108,7 +111,7 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 async fn formats() -> Json<Vec<&'static str>> {
-    Json(vec!["json", "jsonc", "toml", "yaml", "xml"])
+    Json(vec!["json", "jsonc", "csv", "toml", "yaml", "xml"])
 }
 
 async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {

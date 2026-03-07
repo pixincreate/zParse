@@ -1,9 +1,10 @@
 //! Format conversion utilities
 
+use crate::csv::Parser as CsvParser;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;
-use crate::value::{Object, TomlDatetime, Value};
+use crate::value::{Array, Object, TomlDatetime, Value};
 use crate::xml::model::{Content as XmlContent, Document as XmlDocument, Element as XmlElement};
 use crate::xml::parser::Parser as XmlParser;
 use crate::yaml::Parser as YamlParser;
@@ -12,6 +13,7 @@ use indexmap::IndexMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
     Json,
+    Csv,
     Toml,
     Yaml,
     Xml,
@@ -46,6 +48,17 @@ pub fn convert_with_options(
     }
 
     match (from, to) {
+        (Format::Csv, Format::Xml) => {
+            let value = parse_value(input, from, options)?;
+            let doc = csv_value_to_xml(&value)?;
+            Ok(serialize_xml(&doc))
+        }
+        (Format::Xml, Format::Csv) => {
+            let mut parser = XmlParser::new(input.as_bytes());
+            let doc = parser.parse()?;
+            let value = xml_to_csv_value(&doc)?;
+            serialize_value(&value, to)
+        }
         (Format::Xml, _) => {
             let mut parser = XmlParser::new(input.as_bytes());
             let doc = parser.parse()?;
@@ -59,8 +72,20 @@ pub fn convert_with_options(
         }
         _ => {
             let value = parse_value(input, from, options)?;
+            let value = normalize_for_target(value, to);
             serialize_value(&value, to)
         }
+    }
+}
+
+fn normalize_for_target(value: Value, to: Format) -> Value {
+    match (to, value) {
+        (Format::Toml, Value::Array(rows)) => {
+            let mut root = Object::new();
+            root.insert("rows", Value::Array(rows));
+            Value::Object(root)
+        }
+        (_, value) => value,
     }
 }
 
@@ -69,6 +94,10 @@ fn parse_value(input: &str, format: Format, options: &ConvertOptions) -> Result<
         Format::Json => {
             let mut parser = JsonParser::with_config(input.as_bytes(), options.json);
             parser.parse_value()
+        }
+        Format::Csv => {
+            let mut parser = CsvParser::new(input.as_bytes());
+            parser.parse()
         }
         Format::Toml => {
             let mut parser = TomlParser::new(input.as_bytes());
@@ -89,6 +118,7 @@ fn parse_value(input: &str, format: Format, options: &ConvertOptions) -> Result<
 fn serialize_value(value: &Value, format: Format) -> Result<String> {
     match format {
         Format::Json => Ok(serialize_json(value)),
+        Format::Csv => serialize_csv(value),
         Format::Toml => serialize_toml(value),
         Format::Yaml => Ok(serialize_yaml(value, 0)),
         Format::Xml => Err(Error::with_message(
@@ -97,6 +127,120 @@ fn serialize_value(value: &Value, format: Format) -> Result<String> {
             "xml requires xml serializer".to_string(),
         )),
     }
+}
+
+fn serialize_csv(value: &Value) -> Result<String> {
+    let mut owned_rows = Array::new();
+    let rows = match value {
+        Value::Array(rows) => rows,
+        Value::Object(obj) => {
+            if let Some(Value::Array(rows)) = obj.get("rows") {
+                rows
+            } else {
+                owned_rows.push(Value::Object(obj.clone()));
+                &owned_rows
+            }
+        }
+        _ => {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "csv output requires array or object root".to_string(),
+            ));
+        }
+    };
+
+    if rows.is_empty() {
+        return Ok(String::new());
+    }
+
+    let mut headers = Vec::new();
+    for row in rows {
+        let obj = row.as_object().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "csv output requires array of objects".to_string(),
+            )
+        })?;
+
+        for key in obj.keys() {
+            if !headers.iter().any(|header| header == key) {
+                headers.push(key.clone());
+            }
+        }
+    }
+
+    if headers.is_empty() {
+        return Ok(String::new());
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        &headers
+            .iter()
+            .map(|header| escape_csv(header))
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    output.push('\n');
+
+    for row in rows {
+        let obj = row.as_object().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "csv output requires array of objects".to_string(),
+            )
+        })?;
+
+        let fields: Vec<String> = headers
+            .iter()
+            .map(|header| {
+                let value = obj.get(header).unwrap_or(&Value::Null);
+                let cell = match value {
+                    Value::Null => String::new(),
+                    Value::Bool(boolean) => boolean.to_string(),
+                    Value::Number(number) => {
+                        if number.is_finite() {
+                            if number.fract() == 0.0 {
+                                format!("{number:.0}")
+                            } else {
+                                number.to_string()
+                            }
+                        } else {
+                            String::new()
+                        }
+                    }
+                    Value::String(text) => text.clone(),
+                    Value::Datetime(dt) => format_datetime(dt),
+                    Value::Array(_) | Value::Object(_) => serialize_json(value),
+                };
+                if matches!(value, Value::String(_)) {
+                    escape_csv_force_quoted(&cell)
+                } else {
+                    escape_csv(&cell)
+                }
+            })
+            .collect();
+
+        output.push_str(&fields.join(","));
+        output.push('\n');
+    }
+
+    Ok(output)
+}
+
+fn escape_csv(input: &str) -> String {
+    if input.contains(',') || input.contains('"') || input.contains('\n') || input.contains('\r') {
+        format!("\"{}\"", input.replace('"', "\"\""))
+    } else {
+        input.to_string()
+    }
+}
+
+fn escape_csv_force_quoted(input: &str) -> String {
+    format!("\"{}\"", input.replace('"', "\"\""))
 }
 
 fn serialize_json(value: &Value) -> String {
@@ -161,7 +305,7 @@ fn serialize_toml_object(obj: &Object) -> String {
 
 fn serialize_toml_value(value: &Value) -> String {
     match value {
-        Value::Null => "null".to_string(),
+        Value::Null => "\"\"".to_string(),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => {
             if n.is_finite() {
@@ -184,6 +328,124 @@ fn serialize_toml_value(value: &Value) -> String {
         }
         Value::Datetime(dt) => format_datetime(dt),
     }
+}
+
+fn csv_value_to_xml(value: &Value) -> Result<XmlDocument> {
+    let rows = value.as_array().ok_or_else(|| {
+        Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "csv value must be an array of objects for xml conversion".to_string(),
+        )
+    })?;
+
+    let mut children = Vec::new();
+    for row in rows {
+        let obj = row.as_object().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "csv row must be an object".to_string(),
+            )
+        })?;
+
+        let mut row_children = Vec::new();
+        for (key, value) in obj.iter() {
+            let element = XmlElement {
+                name: key.clone(),
+                attributes: IndexMap::new(),
+                children: value_to_children(value),
+            };
+            row_children.push(XmlContent::Element(element));
+        }
+
+        children.push(XmlContent::Element(XmlElement {
+            name: "row".to_string(),
+            attributes: IndexMap::new(),
+            children: row_children,
+        }));
+    }
+
+    Ok(XmlDocument {
+        root: XmlElement {
+            name: "root".to_string(),
+            attributes: IndexMap::new(),
+            children,
+        },
+    })
+}
+
+fn xml_to_csv_value(doc: &XmlDocument) -> Result<Value> {
+    let mut rows = Array::new();
+
+    for child in &doc.root.children {
+        let XmlContent::Element(row_element) = child else {
+            continue;
+        };
+
+        if row_element.name != "row" {
+            continue;
+        }
+
+        let mut row = Object::new();
+        for row_child in &row_element.children {
+            if let XmlContent::Element(field) = row_child {
+                row.insert(field.name.clone(), xml_leaf_to_value(field)?);
+            }
+        }
+
+        rows.push(Value::Object(row));
+    }
+
+    Ok(Value::Array(rows))
+}
+
+fn xml_leaf_to_value(element: &XmlElement) -> Result<Value> {
+    if element.children.is_empty() {
+        return Ok(Value::Null);
+    }
+
+    if element.children.len() == 1 {
+        if let Some(XmlContent::Text(text)) = element.children.first() {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                return Ok(Value::Null);
+            }
+
+            if trimmed.eq_ignore_ascii_case("null") {
+                return Ok(Value::Null);
+            }
+
+            if trimmed.eq_ignore_ascii_case("true") {
+                return Ok(Value::Bool(true));
+            }
+
+            if trimmed.eq_ignore_ascii_case("false") {
+                return Ok(Value::Bool(false));
+            }
+
+            if trimmed.parse::<i64>().is_ok()
+                && let Ok(number) = trimmed.parse::<f64>()
+                && number.is_finite()
+            {
+                return Ok(Value::Number(number));
+            }
+
+            if let Ok(float) = trimmed.parse::<f64>()
+                && float.is_finite()
+            {
+                return Ok(Value::Number(float));
+            }
+
+            return Ok(Value::String(text.clone()));
+        }
+    }
+
+    Err(Error::with_message(
+        ErrorKind::InvalidToken,
+        Span::empty(),
+        "xml row fields must be simple leaf elements".to_string(),
+    ))
 }
 
 fn escape_toml(input: &str) -> String {

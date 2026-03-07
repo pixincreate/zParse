@@ -1,4 +1,4 @@
-//! zParse - High-performance JSON/TOML/YAML/XML parser
+//! zParse - High-performance parser and converter
 //!
 //! # Quick Start
 //!
@@ -33,6 +33,9 @@ pub use value::{Array, Object, TomlDatetime, Value};
 pub mod convert;
 pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 
+pub mod csv;
+pub use csv::Parser as CsvParser;
+
 /// Detect input format from a file path extension (case-insensitive).
 ///
 /// Returns None if the path has no extension or the extension is unsupported.
@@ -45,6 +48,7 @@ pub fn detect_format_from_path(path: impl AsRef<std::path::Path>) -> Option<Form
         "toml" => Some(Format::Toml),
         "yaml" | "yml" => Some(Format::Yaml),
         "xml" => Some(Format::Xml),
+        "csv" => Some(Format::Csv),
         _ => None,
     }
 }
@@ -79,6 +83,16 @@ pub fn from_str_with_config(s: &str, config: Config) -> Result<Value> {
     let input = Input::from_str(s);
     let mut parser = Parser::with_config(input.as_bytes(), config);
     parser.parse_value()
+}
+
+pub fn from_csv_str(s: &str) -> Result<Value> {
+    let mut parser = CsvParser::new(s.as_bytes());
+    parser.parse()
+}
+
+pub fn from_csv_bytes(bytes: &[u8]) -> Result<Value> {
+    let mut parser = CsvParser::new(bytes);
+    parser.parse()
 }
 
 /// Parse TOML from string

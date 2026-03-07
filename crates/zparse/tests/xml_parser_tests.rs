@@ -125,6 +125,7 @@ fn test_parse_complex_xml_document() -> Result<()> {
 }
 
 #[test]
+<<<<<<< HEAD
 fn test_parse_unterminated_element_returns_error() -> Result<()> {
     let input = b"<root><child>unclosed";
     let mut parser = Parser::new(input);
@@ -170,4 +171,5 @@ fn test_convert_malformed_xml_to_json_returns_error() -> Result<()> {
             "malformed XML should return error, got Ok".to_string(),
         ))
     }
+}
 }

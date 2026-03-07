@@ -280,6 +280,26 @@ fn csv_empty_input_returns_empty_array() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
+<<<<<<< HEAD
+fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Error>> {
+    let value = zparse::from_csv_str(" name , age , active \r\n")?;
+    let arr = value.as_array().ok_or("expected array")?;
+    expect_true(
+        arr.is_empty(),
+        "CSV with whitespace/CRLF should return empty array",
+=======
+fn csv_only_headers_returns_empty_array() -> Result<(), Box<dyn std::error::Error>> {
+    let value = zparse::from_csv_str("name,age,active\n")?;
+    let arr = value.as_array().ok_or("expected array")?;
+    expect_true(
+        arr.is_empty(),
+        "CSV with only headers should return empty array",
+>>>>>>> 893ffad36061 (test: add edge case tests for CSV and XML error handling)
+    )?;
+    Ok(())
+}
+
+#[test]
 fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Error>> {
     let value = zparse::from_csv_str(" name , age , active \r\n")?;
     let arr = value.as_array().ok_or("expected array")?;
@@ -289,14 +309,4 @@ fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Err
     )?;
     Ok(())
 }
-
-#[test]
-fn csv_whitespace_only_returns_empty_array() -> Result<(), Box<dyn std::error::Error>> {
-    let value = zparse::from_csv_str("   \n  \n  \n")?;
-    let arr = value.as_array().ok_or("expected array")?;
-    expect_true(
-        arr.is_empty(),
-        "whitespace-only CSV should return empty array",
-    )?;
-    Ok(())
 }

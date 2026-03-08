@@ -5,6 +5,9 @@ use std::collections::VecDeque;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::lexer::toml::{TomlLexer, TomlToken, TomlTokenKind};
 use crate::toml::event::Event;
+
+pub const DEFAULT_MAX_DEPTH: u16 = 128;
+pub const DEFAULT_MAX_SIZE: usize = 10 * 1024 * 1024;
 use crate::value::{Array, Object, TomlDatetime, Value};
 use time::format_description::well_known::Rfc3339;
 use time::macros::format_description;
@@ -22,8 +25,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_depth: 128,
-            max_size: 10 * 1024 * 1024,
+            max_depth: DEFAULT_MAX_DEPTH,
+            max_size: DEFAULT_MAX_SIZE,
         }
     }
 }
@@ -121,7 +124,7 @@ impl<'a> Parser<'a> {
     /// Parse the full document into a Value
     pub fn parse(&mut self) -> Result<Value> {
         while let Some(_event) = self.next_event()? {}
-        Ok(Value::Object(self.root.clone()))
+        Ok(Value::Object(std::mem::take(&mut self.root)))
     }
 
     fn next_token(&mut self) -> Result<TomlToken> {
@@ -140,8 +143,8 @@ impl<'a> Parser<'a> {
                     max: self.config.max_size,
                 },
                 self.bytes_parsed,
-                0,
-                0,
+                1,
+                1,
             ));
         }
 
@@ -276,8 +279,8 @@ impl<'a> Parser<'a> {
                 let datetime = parse_toml_datetime(&value)?;
                 Ok(Value::Datetime(datetime))
             }
-            TomlTokenKind::LeftBracket => self.parse_array(),
-            TomlTokenKind::LeftBrace => self.parse_inline_table(),
+            TomlTokenKind::LeftBracket => self.parse_array(token.span),
+            TomlTokenKind::LeftBrace => self.parse_inline_table(token.span),
             _ => Err(Error::with_message(
                 ErrorKind::InvalidToken,
                 token.span,
@@ -286,14 +289,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_array(&mut self) -> Result<Value> {
+    fn parse_array(&mut self, opening_span: Span) -> Result<Value> {
         self.depth = self.depth.saturating_add(1);
         if self.config.max_depth > 0 && self.depth > self.config.max_depth {
             return Err(Error::with_message(
                 ErrorKind::MaxDepthExceeded {
                     max: self.config.max_depth,
                 },
-                Span::empty(),
+                opening_span,
                 "max depth exceeded".to_string(),
             ));
         }
@@ -377,14 +380,14 @@ impl<'a> Parser<'a> {
         Ok(Value::Array(Array(values)))
     }
 
-    fn parse_inline_table(&mut self) -> Result<Value> {
+    fn parse_inline_table(&mut self, opening_span: Span) -> Result<Value> {
         self.depth = self.depth.saturating_add(1);
         if self.config.max_depth > 0 && self.depth > self.config.max_depth {
             return Err(Error::with_message(
                 ErrorKind::MaxDepthExceeded {
                     max: self.config.max_depth,
                 },
-                Span::empty(),
+                opening_span,
                 "max depth exceeded".to_string(),
             ));
         }

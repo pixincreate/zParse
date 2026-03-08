@@ -6,6 +6,9 @@ use crate::lexer::json::JsonLexer;
 use crate::lexer::{Token, TokenKind};
 use crate::value::{Array, Object, Value};
 
+pub const DEFAULT_MAX_DEPTH: u16 = 128;
+pub const DEFAULT_MAX_SIZE: usize = 10 * 1024 * 1024;
+
 /// Configuration for the JSON parser
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Config {
@@ -22,8 +25,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_depth: 128,
-            max_size: 10 * 1024 * 1024, // 10 MB default
+            max_depth: DEFAULT_MAX_DEPTH,
+            max_size: DEFAULT_MAX_SIZE,
             allow_comments: false,
             allow_trailing_commas: false,
         }
@@ -122,8 +125,8 @@ impl<'a> Parser<'a> {
                     max: self.config.max_size,
                 },
                 self.bytes_parsed,
-                0,
-                0,
+                1,
+                1,
             ));
         }
 
@@ -142,8 +145,8 @@ impl<'a> Parser<'a> {
                     max: self.config.max_size,
                 },
                 self.bytes_parsed,
-                0,
-                0,
+                1,
+                1,
             ));
         }
 
@@ -447,9 +450,9 @@ impl<'a> Parser<'a> {
                 ErrorKind::MaxDepthExceeded {
                     max: self.config.max_depth,
                 },
-                0,
-                0,
-                0,
+                self.bytes_parsed,
+                1,
+                1,
             ));
         }
         self.depth = self.depth.saturating_add(1);

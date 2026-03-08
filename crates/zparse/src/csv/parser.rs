@@ -52,8 +52,15 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a [u8]) -> Self {
-        Self::with_config(input, Config::default())
+    pub const fn new(input: &'a [u8]) -> Self {
+        Self {
+            input,
+            config: Config {
+                delimiter: DEFAULT_DELIMITER,
+                max_size: 0,
+            },
+            bytes_parsed: 0,
+        }
     }
 
     pub fn with_delimiter(input: &'a [u8], delimiter: u8) -> Self {
@@ -77,12 +84,21 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<Value> {
+        if matches!(self.config.delimiter, b'\n' | b'\r' | b'"') {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                "invalid CSV delimiter: delimiter cannot be newline, carriage return, or quote"
+                    .to_string(),
+            ));
+        }
+
         if self.config.max_size > 0 && self.input.len() > self.config.max_size {
             return Err(Error::at(
                 ErrorKind::MaxSizeExceeded {
                     max: self.config.max_size,
                 },
-                self.input.len(),
+                self.bytes_parsed,
                 1,
                 1,
             ));

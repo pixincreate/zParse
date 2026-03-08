@@ -39,8 +39,13 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a [u8]) -> Self {
-        Self::with_config(input, Config::default())
+    pub const fn new(input: &'a [u8]) -> Self {
+        Self {
+            cursor: Cursor::new(input),
+            config: Config {
+                max_size: DEFAULT_MAX_SIZE,
+            },
+        }
     }
 
     pub fn with_config(input: &'a [u8], config: Config) -> Self {

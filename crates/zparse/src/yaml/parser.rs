@@ -61,6 +61,8 @@ impl<'a> Parser<'a> {
 
     /// Parse entire document
     pub fn parse(&mut self) -> Result<Value> {
+        self.parsed_once = true;
+
         let token = self.peek_non_newline()?;
         if token.kind == YamlTokenKind::Eof {
             return Ok(Value::Null);
@@ -81,7 +83,6 @@ impl<'a> Parser<'a> {
 
         if self.events.is_empty() {
             let value = self.parse()?;
-            self.parsed_once = true;
             emit_events(&value, &mut self.events);
         }
 

@@ -1,6 +1,6 @@
 use zparse::error::{Error, ErrorKind, Result};
 use zparse::xml::parser::Parser;
-use zparse::{Span, XmlContent};
+use zparse::{Span, XmlConfig, XmlContent};
 
 fn ensure_eq<T: PartialEq + std::fmt::Debug>(left: T, right: T) -> Result<()> {
     if left == right {
@@ -172,4 +172,41 @@ fn test_convert_malformed_xml_to_json_returns_error() -> Result<()> {
         ))
     }
 }
+}
+
+#[test]
+fn test_from_xml_str_with_config_wires_through() -> Result<()> {
+    let config = XmlConfig::default();
+    let doc = zparse::from_xml_str_with_config("<root><child /></root>", config)?;
+    ensure_eq(doc.root.name.as_str(), "root")?;
+    ensure_eq(doc.root.children.len(), 1)?;
+    Ok(())
+}
+
+#[test]
+fn test_xml_parser_max_size_guard_with_config() -> Result<()> {
+    let config = XmlConfig::new(4);
+    let err = match zparse::from_xml_str_with_config("<root></root>", config) {
+        Ok(doc) => {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                format!("expected max-size guard error, got {doc:?}"),
+            ));
+        }
+        Err(err) => err,
+    };
+
+    match err.kind() {
+        ErrorKind::MaxSizeExceeded { max } => ensure_eq(*max, 4usize)?,
+        other => {
+            return Err(Error::with_message(
+                ErrorKind::InvalidToken,
+                Span::empty(),
+                format!("expected MaxSizeExceeded, got {other:?}"),
+            ));
+        }
+    }
+
+    Ok(())
 }

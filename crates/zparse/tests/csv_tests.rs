@@ -1,5 +1,7 @@
+use zparse::CsvConfig;
 use zparse::Value;
 use zparse::convert::{ConvertOptions, Format, convert, convert_with_options};
+use zparse::error::ErrorKind;
 use zparse::json::Config as JsonConfig;
 
 fn expect_contains(haystack: &str, needle: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -280,22 +282,10 @@ fn csv_empty_input_returns_empty_array() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
-<<<<<<< HEAD
 fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Error>> {
     let value = zparse::from_csv_str(" name , age , active \r\n")?;
     let arr = value.as_array().ok_or("expected array")?;
-    expect_true(
-        arr.is_empty(),
-        "CSV with whitespace/CRLF should return empty array",
-=======
-fn csv_only_headers_returns_empty_array() -> Result<(), Box<dyn std::error::Error>> {
-    let value = zparse::from_csv_str("name,age,active\n")?;
-    let arr = value.as_array().ok_or("expected array")?;
-    expect_true(
-        arr.is_empty(),
-        "CSV with only headers should return empty array",
->>>>>>> 893ffad36061 (test: add edge case tests for CSV and XML error handling)
-    )?;
+    expect_true(arr.is_empty(), "CSV with whitespace/CRLF should return empty array")?;
     Ok(())
 }
 
@@ -309,4 +299,60 @@ fn csv_only_headers_with_whitespace_crlf() -> Result<(), Box<dyn std::error::Err
     )?;
     Ok(())
 }
+
+#[test]
+fn from_csv_str_with_config_supports_custom_delimiter() -> Result<(), Box<dyn std::error::Error>> {
+    let config = CsvConfig::default().with_delimiter(b';');
+    let value = zparse::from_csv_str_with_config("name;age\nAlice;30\n", config)?;
+    let row = value
+        .as_array()
+        .and_then(|arr| arr.get(0))
+        .and_then(Value::as_object)
+        .ok_or("expected first object row")?;
+
+    if row.get("name").and_then(|v| v.as_string()) != Some("Alice") {
+        return Err("unexpected name value".into());
+    }
+    if row.get("age").and_then(|v| v.as_number()) != Some(30.0) {
+        return Err("unexpected age value".into());
+    }
+
+    Ok(())
+}
+
+#[test]
+fn from_csv_bytes_with_config_enforces_max_size() -> Result<(), Box<dyn std::error::Error>> {
+    let config = CsvConfig::default().with_max_size(7);
+    let err = match zparse::from_csv_bytes_with_config(b"a,b\n1,2\n", config) {
+        Ok(value) => return Err(format!("expected max-size guard error, got {value:?}").into()),
+        Err(err) => err,
+    };
+
+    match err.kind() {
+        ErrorKind::MaxSizeExceeded { max } => {
+            if *max != 7 {
+                return Err(format!("expected max=7, got {max}").into());
+            }
+        }
+        other => return Err(format!("expected MaxSizeExceeded, got {other:?}").into()),
+    }
+
+    Ok(())
+}
+
+#[test]
+fn csv_parser_rejects_invalid_delimiter() -> Result<(), Box<dyn std::error::Error>> {
+    let config = CsvConfig::default().with_delimiter(b'\n');
+    let err = match zparse::from_csv_str_with_config("a,b\n1,2\n", config) {
+        Ok(value) => return Err(format!("expected invalid delimiter error, got {value:?}").into()),
+        Err(err) => err,
+    };
+
+    match err.kind() {
+        ErrorKind::InvalidToken => {}
+        other => return Err(format!("expected InvalidToken, got {other:?}").into()),
+    }
+
+    Ok(())
+>>>>>>> 3fc58a383519 (fix(review): address parser API compatibility and coverage gaps)
 }

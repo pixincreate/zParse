@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use axum::{Json, Router, routing::get, routing::post};
+use axum::{Json, Router, extract::DefaultBodyLimit, routing::get, routing::post};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -80,11 +80,15 @@ struct ConvertResponse {
 
 #[tokio::main]
 async fn main() {
+    // 10 MB request body limit (prevents DoS via huge payloads)
+    const MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
+
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/formats", get(formats))
         .route("/api/parse", post(parse))
         .route("/api/convert", post(convert))
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -125,7 +129,15 @@ async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {
 }
 
 async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
-    let csv_config = csv_config_from_delimiter(payload.csv_delimiter);
+    let csv_config = match csv_config_from_delimiter(payload.csv_delimiter) {
+        Ok(config) => config,
+        Err(err) => {
+            return Json(ConvertResponse {
+                status: "error",
+                content: err,
+            });
+        }
+    };
     let result = if matches!(payload.from, InputFormat::Jsonc) {
         let config = zparse::JsonConfig {
             allow_comments: true,
@@ -167,10 +179,31 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
     }
 }
 
-fn csv_config_from_delimiter(delimiter: Option<char>) -> zparse::CsvConfig {
+fn csv_config_from_delimiter(delimiter: Option<char>) -> Result<zparse::CsvConfig, String> {
     match delimiter {
-        Some(ch) if ch.is_ascii() => zparse::CsvConfig::default().with_delimiter(ch as u8),
-        _ => zparse::CsvConfig::default(),
+        None => Ok(zparse::CsvConfig::default()),
+        Some(ch) => {
+            if !ch.is_ascii() {
+                return Err(format!(
+                    "CSV delimiter must be ASCII, got '{ch}' (U+{:04X})",
+                    ch as u32
+                ));
+            }
+            let b = ch as u8;
+            if matches!(b, b'\n' | b'\r' | b'"') {
+                return Err(format!(
+                    "Invalid CSV delimiter: '{ch}' ({}) is reserved",
+                    if b == b'\n' {
+                        "newline"
+                    } else if b == b'\r' {
+                        "carriage return"
+                    } else {
+                        "quote"
+                    }
+                ));
+            }
+            Ok(zparse::CsvConfig::default().with_delimiter(b))
+        }
     }
 }
 
@@ -179,7 +212,7 @@ fn parse_to_json(
     format: InputFormat,
     csv_delimiter: Option<char>,
 ) -> Result<serde_json::Value, String> {
-    let csv_config = csv_config_from_delimiter(csv_delimiter);
+    let csv_config = csv_config_from_delimiter(csv_delimiter)?;
     let json = if matches!(format, InputFormat::Jsonc) {
         let config = zparse::JsonConfig {
             allow_comments: true,

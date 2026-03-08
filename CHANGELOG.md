@@ -17,6 +17,8 @@
 
 ### Chore
 
+- Update toml requirement from 0.9.11 to 1.0.2
+- Add workflow dispatch for manual CI triggers
 - Add focused integration coverage for CSV/XML config entrypoints and parser guards
 
 ### CI

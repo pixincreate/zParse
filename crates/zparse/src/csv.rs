@@ -4,6 +4,26 @@ pub use parser::Parser;
 
 use crate::value::Value;
 
+pub fn from_csv_str(s: &str) -> crate::error::Result<Value> {
+    let mut parser = Parser::new(s.as_bytes());
+    parser.parse()
+}
+
+pub fn from_csv_bytes(bytes: &[u8]) -> crate::error::Result<Value> {
+    let mut parser = Parser::new(bytes);
+    parser.parse()
+}
+
+pub fn from_csv_str_with_delimiter(s: &str, delimiter: u8) -> crate::error::Result<Value> {
+    let mut parser = Parser::with_delimiter(s.as_bytes(), delimiter);
+    parser.parse()
+}
+
+pub fn from_csv_bytes_with_delimiter(bytes: &[u8], delimiter: u8) -> crate::error::Result<Value> {
+    let mut parser = Parser::with_delimiter(bytes, delimiter);
+    parser.parse()
+}
+
 pub(crate) fn infer_primitive_value(input: &str) -> Option<Value> {
     if input.is_empty() || input.eq_ignore_ascii_case("null") {
         return Some(Value::Null);

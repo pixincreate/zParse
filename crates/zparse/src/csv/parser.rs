@@ -8,14 +8,22 @@ struct Field {
     quoted: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Parser<'a> {
     input: &'a [u8],
+    delimiter: u8,
 }
 
 impl<'a> Parser<'a> {
     pub const fn new(input: &'a [u8]) -> Self {
-        Self { input }
+        Self {
+            input,
+            delimiter: b',',
+        }
+    }
+
+    pub const fn with_delimiter(input: &'a [u8], delimiter: u8) -> Self {
+        Self { input, delimiter }
     }
 
     pub fn parse(&mut self) -> Result<Value> {
@@ -103,7 +111,7 @@ impl<'a> Parser<'a> {
             }
 
             match self.input.get(index).copied() {
-                Some(b',') => {
+                Some(d) if d == self.delimiter => {
                     index += 1;
                 }
                 Some(b'\n') => {
@@ -126,7 +134,10 @@ impl<'a> Parser<'a> {
 
     fn parse_field(&self, mut index: usize) -> Result<(Field, usize)> {
         if index >= self.input.len()
-            || self.input.get(index).is_some_and(|byte| *byte == b',')
+            || self
+                .input
+                .get(index)
+                .is_some_and(|byte| *byte == self.delimiter)
             || self.input.get(index).is_some_and(|byte| *byte == b'\n')
             || self.input.get(index).is_some_and(|byte| *byte == b'\r')
         {
@@ -167,13 +178,14 @@ impl<'a> Parser<'a> {
                         index += 1;
                     }
 
-                    if index < self.input.len()
-                        && self
-                            .input
-                            .get(index)
-                            .is_some_and(|byte| !matches!(*byte, b',' | b'\n' | b'\r'))
-                    {
-                        return Err(invalid_csv("invalid character after quoted CSV field"));
+                    if index < self.input.len() {
+                        if let Some(&byte) = self.input.get(index) {
+                            if byte != self.delimiter && byte != b'\n' && byte != b'\r' {
+                                return Err(invalid_csv(
+                                    "invalid character after quoted CSV field",
+                                ));
+                            }
+                        }
                     }
 
                     let value =
@@ -196,12 +208,10 @@ impl<'a> Parser<'a> {
         }
 
         let start = index;
-        while index < self.input.len()
-            && self
-                .input
-                .get(index)
-                .is_some_and(|byte| !matches!(*byte, b',' | b'\n' | b'\r'))
-        {
+        while let Some(&byte) = self.input.get(index) {
+            if byte == self.delimiter || byte == b'\n' || byte == b'\r' {
+                break;
+            }
             index += 1;
         }
 

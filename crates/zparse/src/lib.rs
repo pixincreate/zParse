@@ -97,6 +97,18 @@ pub fn from_csv_bytes(bytes: &[u8]) -> Result<Value> {
     parser.parse()
 }
 
+/// Parse CSV from string with custom delimiter
+pub fn from_csv_str_with_delimiter(s: &str, delimiter: u8) -> Result<Value> {
+    let mut parser = CsvParser::with_delimiter(s.as_bytes(), delimiter);
+    parser.parse()
+}
+
+/// Parse CSV from bytes with custom delimiter
+pub fn from_csv_bytes_with_delimiter(bytes: &[u8], delimiter: u8) -> Result<Value> {
+    let mut parser = CsvParser::with_delimiter(bytes, delimiter);
+    parser.parse()
+}
+
 /// Parse TOML from string
 pub fn from_toml_str(s: &str) -> Result<Value> {
     let mut parser = TomlParser::new(s.as_bytes());

@@ -18,6 +18,17 @@ fn expect_true(cond: bool, message: &str) -> Result<(), Box<dyn std::error::Erro
     }
 }
 
+fn ensure_eq<T: std::cmp::PartialEq + std::fmt::Debug>(
+    left: T,
+    right: T,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if left == right {
+        Ok(())
+    } else {
+        Err(format!("{:?} != {:?}", left, right).into())
+    }
+}
+
 #[test]
 fn parse_basic_csv() -> Result<(), Box<dyn std::error::Error>> {
     let value = zparse::from_csv_str("name,age,active\nAlice,30,true\nBob,25,false\n")?;
@@ -298,5 +309,56 @@ fn csv_whitespace_only_returns_empty_array() -> Result<(), Box<dyn std::error::E
         arr.is_empty(),
         "whitespace-only CSV should return empty array",
     )?;
+    Ok(())
+}
+
+#[test]
+fn parse_csv_with_semicolon_delimiter() -> Result<(), Box<dyn std::error::Error>> {
+    let data = "name;age\nAlice;30\nBob;25";
+    let value = zparse::from_csv_str_with_delimiter(data, b';')?;
+    let arr = value.as_array().ok_or("expected array")?;
+    ensure_eq(arr.len(), 2)?;
+    let first = arr
+        .get(0)
+        .ok_or("missing first row")?
+        .as_object()
+        .ok_or("expected object")?;
+    ensure_eq(first.get("name"), Some(&Value::String("Alice".to_string())))?;
+    ensure_eq(first.get("age"), Some(&Value::Number(30.0)))?;
+    Ok(())
+}
+
+#[test]
+fn parse_csv_with_tab_delimiter() -> Result<(), Box<dyn std::error::Error>> {
+    let data = "name\tage\nCharlie\t28";
+    let value = zparse::from_csv_str_with_delimiter(data, b'\t')?;
+    let arr = value.as_array().ok_or("expected array")?;
+    ensure_eq(arr.len(), 1)?;
+    let first = arr
+        .get(0)
+        .ok_or("missing first row")?
+        .as_object()
+        .ok_or("expected object")?;
+    ensure_eq(
+        first.get("name"),
+        Some(&Value::String("Charlie".to_string())),
+    )?;
+    ensure_eq(first.get("age"), Some(&Value::Number(28.0)))?;
+    Ok(())
+}
+
+#[test]
+fn parse_csv_with_pipe_delimiter() -> Result<(), Box<dyn std::error::Error>> {
+    let data = "name|age\nDave|35";
+    let value = zparse::from_csv_str_with_delimiter(data, b'|')?;
+    let arr = value.as_array().ok_or("expected array")?;
+    ensure_eq(arr.len(), 1)?;
+    let first = arr
+        .get(0)
+        .ok_or("missing first row")?
+        .as_object()
+        .ok_or("expected object")?;
+    ensure_eq(first.get("name"), Some(&Value::String("Dave".to_string())))?;
+    ensure_eq(first.get("age"), Some(&Value::Number(35.0)))?;
     Ok(())
 }

@@ -17,13 +17,16 @@ zParse is a high-performance Rust library and toolchain for parsing and converti
 ### Library
 
 ```rust
-use zparse::{from_csv_str, from_str, from_toml_str, from_yaml_str, from_xml_str};
+use zparse::{from_csv_str, from_csv_str_with_delimiter, from_str, from_toml_str, from_yaml_str, from_xml_str};
 
 let json_value = from_str(r#"{"name": "zparse"}"#)?;
 let toml_value = from_toml_str("name = \"zparse\"\n")?;
 let yaml_value = from_yaml_str("name: zparse\n")?;
 let xml_doc = from_xml_str("<root><name>zparse</name></root>")?;
 let csv_value = from_csv_str("name,age\nzparse,2\n")?;
+
+// Custom CSV delimiter (semicolon, tab, pipe, etc.)
+let tsv_value = from_csv_str_with_delimiter("name\tage\nzparse\t2\n", b'\t')?;
 # Ok::<(), zparse::Error>(())
 ```
 

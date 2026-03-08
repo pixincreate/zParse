@@ -44,7 +44,7 @@ struct Field {
     quoted: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Parser<'a> {
     input: &'a [u8],
     config: Config,
@@ -247,11 +247,12 @@ impl<'a> Parser<'a> {
 
                     index += 1;
 
+                    // Skip whitespace after closing quote, but NOT the delimiter
                     while index < self.input.len()
-                        && self
-                            .input
-                            .get(index)
-                            .is_some_and(|byte| matches!(*byte, b' ' | b'\t' | b'\x0c'))
+                        && self.input.get(index).is_some_and(|byte| {
+                            *byte != self.config.delimiter
+                                && matches!(*byte, b' ' | b'\t' | b'\x0c')
+                        })
                     {
                         index += 1;
                     }

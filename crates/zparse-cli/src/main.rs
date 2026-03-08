@@ -39,39 +39,17 @@ struct Args {
     /// Allow trailing commas in JSON
     #[arg(long)]
     json_trailing_commas: bool,
+    /// CSV field delimiter as a single character (default: ,)
+    #[arg(long, value_name = "CHAR")]
+    csv_delimiter: Option<char>,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Parse input and validate
+    /// Validate an input file or stdin
     Parse(ParseArgs),
     /// Convert between formats
     Convert(ConvertArgs),
-}
-
-impl From<FormatArg> for zparse::Format {
-    fn from(value: FormatArg) -> Self {
-        match value {
-            FormatArg::Json => zparse::Format::Json,
-            FormatArg::Jsonc => zparse::Format::Json,
-            FormatArg::Csv => zparse::Format::Csv,
-            FormatArg::Toml => zparse::Format::Toml,
-            FormatArg::Yaml => zparse::Format::Yaml,
-            FormatArg::Xml => zparse::Format::Xml,
-        }
-    }
-}
-
-impl From<OutputFormatArg> for zparse::Format {
-    fn from(value: OutputFormatArg) -> Self {
-        match value {
-            OutputFormatArg::Json => zparse::Format::Json,
-            OutputFormatArg::Csv => zparse::Format::Csv,
-            OutputFormatArg::Toml => zparse::Format::Toml,
-            OutputFormatArg::Yaml => zparse::Format::Yaml,
-            OutputFormatArg::Xml => zparse::Format::Xml,
-        }
-    }
 }
 
 #[derive(Debug, Parser)]
@@ -94,6 +72,9 @@ struct ParseArgs {
     /// Allow trailing commas in JSON
     #[arg(long)]
     json_trailing_commas: bool,
+    /// CSV field delimiter as a single character (default: ,)
+    #[arg(long, value_name = "CHAR")]
+    csv_delimiter: Option<char>,
 }
 
 #[derive(Debug, Parser)]
@@ -119,6 +100,9 @@ struct ConvertArgs {
     /// Allow trailing commas in JSON
     #[arg(long)]
     json_trailing_commas: bool,
+    /// CSV field delimiter as a single character (default: ,)
+    #[arg(long, value_name = "CHAR")]
+    csv_delimiter: Option<char>,
 }
 
 #[derive(Clone, Debug, ValueEnum)]
@@ -142,6 +126,30 @@ enum OutputFormatArg {
     Xml,
 }
 
+impl From<FormatArg> for zparse::Format {
+    fn from(value: FormatArg) -> Self {
+        match value {
+            FormatArg::Json | FormatArg::Jsonc => zparse::Format::Json,
+            FormatArg::Csv => zparse::Format::Csv,
+            FormatArg::Toml => zparse::Format::Toml,
+            FormatArg::Yaml => zparse::Format::Yaml,
+            FormatArg::Xml => zparse::Format::Xml,
+        }
+    }
+}
+
+impl From<OutputFormatArg> for zparse::Format {
+    fn from(value: OutputFormatArg) -> Self {
+        match value {
+            OutputFormatArg::Json => zparse::Format::Json,
+            OutputFormatArg::Csv => zparse::Format::Csv,
+            OutputFormatArg::Toml => zparse::Format::Toml,
+            OutputFormatArg::Yaml => zparse::Format::Yaml,
+            OutputFormatArg::Xml => zparse::Format::Xml,
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     if let Some(command) = args.command {
@@ -159,6 +167,7 @@ fn main() -> Result<()> {
             print_output: args.print_output,
             json_comments: args.json_comments,
             json_trailing_commas: args.json_trailing_commas,
+            csv_delimiter: args.csv_delimiter,
         };
         return run_parse(parse_args);
     }
@@ -175,6 +184,7 @@ fn main() -> Result<()> {
             print_output: args.print_output,
             json_comments: args.json_comments,
             json_trailing_commas: args.json_trailing_commas,
+            csv_delimiter: args.csv_delimiter,
         };
         return run_convert(convert_args);
     }
@@ -194,7 +204,8 @@ fn run_parse(args: ParseArgs) -> Result<()> {
             parser.parse_value()?;
         }
         zparse::Format::Csv => {
-            let mut parser = zparse::csv::Parser::new(input_data.as_bytes());
+            let config = csv_config_from_flags(args.csv_delimiter)?;
+            let mut parser = zparse::csv::Parser::with_config(input_data.as_bytes(), config);
             parser.parse()?;
         }
         zparse::Format::Toml => {
@@ -224,7 +235,11 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
     let (from, is_jsonc) = resolve_format(args.from, &args.input)?;
     let json_config =
         json_config_from_flags(is_jsonc, args.json_comments, args.json_trailing_commas);
-    let options = zparse::ConvertOptions { json: json_config };
+    let csv_config = csv_config_from_flags(args.csv_delimiter)?;
+    let options = zparse::ConvertOptions {
+        json: json_config,
+        csv: csv_config,
+    };
     let to = args.to.into();
     let output = zparse::convert_with_options(&input_data, from, to, &options)?;
 
@@ -329,4 +344,23 @@ fn json_config_from_flags(
     }
 
     config
+}
+
+fn csv_config_from_flags(delimiter: Option<char>) -> Result<zparse::CsvConfig> {
+    match delimiter {
+        None => Ok(zparse::CsvConfig::default()),
+        Some(ch) => {
+            if !ch.is_ascii() {
+                bail!("CSV delimiter must be an ASCII character");
+            }
+            let byte = ch as u8;
+            if matches!(byte, b'\n' | b'\r' | b'"') {
+                bail!(
+                    "CSV delimiter {:?} conflicts with record separators or quoting rules",
+                    ch
+                );
+            }
+            Ok(zparse::CsvConfig::default().with_delimiter(byte))
+        }
+    }
 }

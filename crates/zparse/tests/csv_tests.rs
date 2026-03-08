@@ -203,6 +203,7 @@ fn jsonc_to_csv_strips_comments_and_trailing_commas() -> Result<(), Box<dyn std:
         json: JsonConfig::default()
             .with_comments(true)
             .with_trailing_commas(true),
+        ..Default::default()
     };
     let input = r#"
         // comment
@@ -227,6 +228,7 @@ fn csv_to_json_is_strict_json_output() -> Result<(), Box<dyn std::error::Error>>
         json: JsonConfig::default()
             .with_comments(true)
             .with_trailing_commas(true),
+        ..Default::default()
     };
     let output = convert_with_options("name,age\nAlice,30\n", Format::Csv, Format::Json, &options)?;
     expect_true(

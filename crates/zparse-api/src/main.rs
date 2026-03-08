@@ -133,7 +133,10 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
             &payload.content,
             payload.from.into(),
             payload.to.into(),
-            &zparse::ConvertOptions { json: config },
+            &zparse::ConvertOptions {
+                json: config,
+                ..Default::default()
+            },
         )
     } else {
         zparse::convert(&payload.content, payload.from.into(), payload.to.into())
@@ -162,7 +165,10 @@ fn parse_to_json(input: &str, format: InputFormat) -> Result<serde_json::Value, 
             input,
             format.into(),
             zparse::Format::Json,
-            &zparse::ConvertOptions { json: config },
+            &zparse::ConvertOptions {
+                json: config,
+                ..Default::default()
+            },
         )
     } else {
         zparse::convert(input, format.into(), zparse::Format::Json)

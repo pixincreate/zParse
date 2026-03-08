@@ -1,6 +1,6 @@
 //! JSON streaming parser implementation
 
-use crate::error::{Error, ErrorKind, Result};
+use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::event::Event;
 use crate::lexer::json::JsonLexer;
 use crate::lexer::{Token, TokenKind};
@@ -118,25 +118,10 @@ impl<'a> Parser<'a> {
 
     /// Get the next event from the parser
     pub fn next_event(&mut self) -> Result<Option<Event>> {
-        // Check size limit before processing
-        if self.config.max_size > 0 && self.bytes_parsed >= self.config.max_size {
-            return Err(Error::at(
-                ErrorKind::MaxSizeExceeded {
-                    max: self.config.max_size,
-                },
-                self.bytes_parsed,
-                1,
-                1,
-            ));
-        }
-
-        // Skip whitespace and get next token
         let token = self.lexer.next_token()?;
 
-        // Track bytes parsed based on token span
         let span = token.span;
-        let token_len = span.end.offset.saturating_sub(span.start.offset);
-        self.bytes_parsed = self.bytes_parsed.saturating_add(token_len);
+        self.bytes_parsed = span.end.offset;
 
         // Check size limit after updating
         if self.config.max_size > 0 && self.bytes_parsed > self.config.max_size {
@@ -145,8 +130,8 @@ impl<'a> Parser<'a> {
                     max: self.config.max_size,
                 },
                 self.bytes_parsed,
-                1,
-                1,
+                span.end.line,
+                span.end.col,
             ));
         }
 
@@ -281,13 +266,13 @@ impl<'a> Parser<'a> {
     fn handle_root(&mut self, token: Token) -> Result<Option<Event>> {
         match token.kind {
             TokenKind::LeftBrace => {
-                self.increment_depth()?;
+                self.increment_depth(token.span)?;
                 self.context_stack.push(ContainerContext::Object);
                 self.is_first_element = true;
                 Ok(Some(Event::ObjectStart))
             }
             TokenKind::LeftBracket => {
-                self.increment_depth()?;
+                self.increment_depth(token.span)?;
                 self.context_stack.push(ContainerContext::Array);
                 self.is_first_element = true;
                 Ok(Some(Event::ArrayStart))
@@ -398,7 +383,7 @@ impl<'a> Parser<'a> {
     fn parse_value_token(&mut self, token: Token) -> Result<Option<Event>> {
         match token.kind {
             TokenKind::LeftBrace => {
-                self.increment_depth()?;
+                self.increment_depth(token.span)?;
                 self.context_stack.push(ContainerContext::Object);
                 self.is_first_element = true;
                 self.expecting_colon_after_key = false;
@@ -407,7 +392,7 @@ impl<'a> Parser<'a> {
                 Ok(Some(Event::ObjectStart))
             }
             TokenKind::LeftBracket => {
-                self.increment_depth()?;
+                self.increment_depth(token.span)?;
                 self.context_stack.push(ContainerContext::Array);
                 self.is_first_element = true;
                 self.expecting_colon_after_key = false;
@@ -444,15 +429,15 @@ impl<'a> Parser<'a> {
         !self.is_first_element && !self.expecting_colon_after_key && !self.expecting_value
     }
 
-    fn increment_depth(&mut self) -> Result<()> {
+    fn increment_depth(&mut self, opening_span: Span) -> Result<()> {
         if self.config.max_depth > 0 && self.depth >= self.config.max_depth {
             return Err(Error::at(
                 ErrorKind::MaxDepthExceeded {
                     max: self.config.max_depth,
                 },
-                self.bytes_parsed,
-                1,
-                1,
+                opening_span.start.offset,
+                opening_span.start.line,
+                opening_span.start.col,
             ));
         }
         self.depth = self.depth.saturating_add(1);

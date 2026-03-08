@@ -8,7 +8,9 @@
 - Add bidirectional conversion support for CSV with JSON, TOML, YAML, and XML
 - Add JSONC-compatible conversion paths by accepting comments/trailing commas on JSON input and normalizing output
 - Add `zparse-wasm` crate with browser/Node-compatible `convert`, `parse`, and `detect_format` APIs via `wasm-bindgen`
-- Add CSV custom delimiter support via `from_csv_str_with_delimiter` and `from_csv_bytes_with_delimiter` APIs
+- Add CSV custom delimiter support via `from_csv_str_with_delimiter` and `from_csv_bytes_with_delimiter` library APIs
+- Expose `--csv-delimiter` flag on CLI `parse` and `convert` subcommands (and top-level `--parse`/`--convert` flags)
+- Add `convert_csv(input, to, delimiter)` and `parse_csv_delimiter(input, delimiter)` exports to `zparse-wasm`
 
 ### Refactor
 

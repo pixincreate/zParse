@@ -76,6 +76,12 @@ zparse convert --from json --to toml input.json
 # Convert CSV to JSON
 zparse convert --from csv --to json input.csv
 
+# Parse a TSV file (tab-separated values)
+zparse parse --from csv --csv-delimiter $'\t' input.tsv
+
+# Convert a pipe-delimited CSV to JSON
+zparse convert --from csv --to json --csv-delimiter '|' input.csv
+
 # Convert TOML to YAML with format inference for the input
 zparse convert --to yaml input.toml
 
@@ -139,13 +145,16 @@ wasm-pack test --node crates/zparse-wasm
 Use from JavaScript:
 
 ```js
-import init, { convert, parse, detect_format } from "./pkg/zparse_wasm.js";
+import init, { convert, parse, detect_format, convert_csv } from "./pkg/zparse_wasm.js";
 
 await init();
 
 const toml = convert('{"name":"zparse"}', "json", "toml");
 const json = parse("name = \"zparse\"", "toml");
 const fmt = detect_format("data.csv"); // "csv"
+
+// Custom CSV delimiter (e.g. tab-separated)
+const tsvJson = convert_csv("name\tage\nzparse\t2", "json", "\t");
 ```
 
 ## Contribution

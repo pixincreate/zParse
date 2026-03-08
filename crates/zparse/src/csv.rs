@@ -1,6 +1,6 @@
 pub mod parser;
 
-pub use parser::Parser;
+pub use parser::{Config, Parser};
 
 use crate::value::Value;
 

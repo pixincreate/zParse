@@ -2,6 +2,42 @@ use crate::csv::infer_primitive_value;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::value::{Array, Object, Value};
 
+pub const DEFAULT_DELIMITER: u8 = b',';
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Config {
+    pub delimiter: u8,
+    pub max_size: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            delimiter: DEFAULT_DELIMITER,
+            max_size: 0,
+        }
+    }
+}
+
+impl Config {
+    pub const fn new(delimiter: u8, max_size: usize) -> Self {
+        Self {
+            delimiter,
+            max_size,
+        }
+    }
+
+    pub const fn with_delimiter(mut self, delimiter: u8) -> Self {
+        self.delimiter = delimiter;
+        self
+    }
+
+    pub const fn with_max_size(mut self, max_size: usize) -> Self {
+        self.max_size = max_size;
+        self
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Field {
     value: String,
@@ -11,15 +47,49 @@ struct Field {
 #[derive(Debug)]
 pub struct Parser<'a> {
     input: &'a [u8],
+    config: Config,
+    bytes_parsed: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub const fn new(input: &'a [u8]) -> Self {
-        Self { input }
+    pub fn new(input: &'a [u8]) -> Self {
+        Self::with_config(input, Config::default())
+    }
+
+    pub fn with_delimiter(input: &'a [u8], delimiter: u8) -> Self {
+        Self::with_config(input, Config::default().with_delimiter(delimiter))
+    }
+
+    pub fn with_config(input: &'a [u8], config: Config) -> Self {
+        Self {
+            input,
+            config,
+            bytes_parsed: 0,
+        }
+    }
+
+    pub const fn config(&self) -> &Config {
+        &self.config
+    }
+
+    pub const fn bytes_parsed(&self) -> usize {
+        self.bytes_parsed
     }
 
     pub fn parse(&mut self) -> Result<Value> {
+        if self.config.max_size > 0 && self.input.len() > self.config.max_size {
+            return Err(Error::at(
+                ErrorKind::MaxSizeExceeded {
+                    max: self.config.max_size,
+                },
+                self.input.len(),
+                1,
+                1,
+            ));
+        }
+
         let records = self.parse_records()?;
+        self.bytes_parsed = self.input.len();
         if records.is_empty() {
             return Ok(Value::Array(Array::new()));
         }
@@ -103,7 +173,7 @@ impl<'a> Parser<'a> {
             }
 
             match self.input.get(index).copied() {
-                Some(b',') => {
+                Some(delimiter) if delimiter == self.config.delimiter => {
                     index += 1;
                 }
                 Some(b'\n') => {
@@ -126,7 +196,10 @@ impl<'a> Parser<'a> {
 
     fn parse_field(&self, mut index: usize) -> Result<(Field, usize)> {
         if index >= self.input.len()
-            || self.input.get(index).is_some_and(|byte| *byte == b',')
+            || self
+                .input
+                .get(index)
+                .is_some_and(|byte| *byte == self.config.delimiter)
             || self.input.get(index).is_some_and(|byte| *byte == b'\n')
             || self.input.get(index).is_some_and(|byte| *byte == b'\r')
         {
@@ -168,10 +241,9 @@ impl<'a> Parser<'a> {
                     }
 
                     if index < self.input.len()
-                        && self
-                            .input
-                            .get(index)
-                            .is_some_and(|byte| !matches!(*byte, b',' | b'\n' | b'\r'))
+                        && self.input.get(index).is_some_and(|byte| {
+                            *byte != self.config.delimiter && !matches!(*byte, b'\n' | b'\r')
+                        })
                     {
                         return Err(invalid_csv("invalid character after quoted CSV field"));
                     }
@@ -197,10 +269,9 @@ impl<'a> Parser<'a> {
 
         let start = index;
         while index < self.input.len()
-            && self
-                .input
-                .get(index)
-                .is_some_and(|byte| !matches!(*byte, b',' | b'\n' | b'\r'))
+            && self.input.get(index).is_some_and(|byte| {
+                *byte != self.config.delimiter && !matches!(*byte, b'\n' | b'\r')
+            })
         {
             index += 1;
         }

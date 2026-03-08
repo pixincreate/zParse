@@ -123,3 +123,51 @@ fn test_parse_complex_xml_document() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_parse_unterminated_element_returns_error() -> Result<()> {
+    let input = b"<root><child>unclosed";
+    let mut parser = Parser::new(input);
+    let result = parser.parse();
+    if result.is_err() {
+        Ok(())
+    } else {
+        Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected error for unterminated element".to_string(),
+        ))
+    }
+}
+
+#[test]
+fn test_parse_mismatched_tags_returns_error() -> Result<()> {
+    let input = b"<root><child></wrong></root>";
+    let mut parser = Parser::new(input);
+    let result = parser.parse();
+    if result.is_err() {
+        Ok(())
+    } else {
+        Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected error for mismatched tags".to_string(),
+        ))
+    }
+}
+
+#[test]
+fn test_convert_malformed_xml_to_json_returns_error() -> Result<()> {
+    use zparse::convert::{Format, convert};
+    let input = "<root><row><name>test";
+    let result = convert(input, Format::Xml, Format::Json);
+    if result.is_err() {
+        Ok(())
+    } else {
+        Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "malformed XML should return error, got Ok".to_string(),
+        ))
+    }
+}

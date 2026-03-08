@@ -2,6 +2,7 @@
 
 use crate::csv::Parser as CsvParser;
 use crate::csv::infer_primitive_value;
+use crate::csv::parser::Config as CsvConfig;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;
@@ -24,6 +25,7 @@ pub enum Format {
 #[derive(Clone, Debug, Default)]
 pub struct ConvertOptions {
     pub json: JsonConfig,
+    pub csv: CsvConfig,
 }
 
 /// Convert between supported formats
@@ -97,7 +99,7 @@ fn parse_value(input: &str, format: Format, options: &ConvertOptions) -> Result<
             parser.parse_value()
         }
         Format::Csv => {
-            let mut parser = CsvParser::new(input.as_bytes());
+            let mut parser = CsvParser::with_config(input.as_bytes(), options.csv);
             parser.parse()
         }
         Format::Toml => {

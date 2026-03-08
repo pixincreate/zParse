@@ -55,6 +55,7 @@ fn convert_jsonc_to_json_normalizes_to_strict_json() {
         json: Config::default()
             .with_comments(true)
             .with_trailing_commas(true),
+        ..Default::default()
     };
 
     let output = convert_with_options(input, Format::Json, Format::Json, &options);
@@ -77,6 +78,7 @@ fn convert_jsonc_to_toml_works() {
         json: Config::default()
             .with_comments(true)
             .with_trailing_commas(true),
+        ..Default::default()
     };
 
     let output = convert_with_options(input, Format::Json, Format::Toml, &options);

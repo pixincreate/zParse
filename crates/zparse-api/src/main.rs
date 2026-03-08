@@ -8,6 +8,7 @@ use tower_http::cors::{Any, CorsLayer};
 struct ParseRequest {
     content: String,
     format: InputFormat,
+    csv_delimiter: Option<char>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -15,6 +16,7 @@ struct ConvertRequest {
     content: String,
     from: InputFormat,
     to: OutputFormat,
+    csv_delimiter: Option<char>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
@@ -116,13 +118,14 @@ async fn formats() -> Json<Vec<&'static str>> {
 }
 
 async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {
-    match parse_to_json(&payload.content, payload.format) {
+    match parse_to_json(&payload.content, payload.format, payload.csv_delimiter) {
         Ok(data) => Json(ApiResponse::Ok { data }),
         Err(err) => Json(ApiResponse::Err { error: err }),
     }
 }
 
 async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
+    let csv_config = csv_config_from_delimiter(payload.csv_delimiter);
     let result = if matches!(payload.from, InputFormat::Jsonc) {
         let config = zparse::JsonConfig {
             allow_comments: true,
@@ -133,7 +136,20 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
             &payload.content,
             payload.from.into(),
             payload.to.into(),
-            &zparse::ConvertOptions { json: config },
+            &zparse::ConvertOptions {
+                json: config,
+                csv: csv_config,
+            },
+        )
+    } else if matches!(payload.from, InputFormat::Csv) && payload.csv_delimiter.is_some() {
+        zparse::convert_with_options(
+            &payload.content,
+            payload.from.into(),
+            payload.to.into(),
+            &zparse::ConvertOptions {
+                csv: csv_config,
+                ..Default::default()
+            },
         )
     } else {
         zparse::convert(&payload.content, payload.from.into(), payload.to.into())
@@ -151,7 +167,19 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
     }
 }
 
-fn parse_to_json(input: &str, format: InputFormat) -> Result<serde_json::Value, String> {
+fn csv_config_from_delimiter(delimiter: Option<char>) -> zparse::CsvConfig {
+    match delimiter {
+        Some(ch) if ch.is_ascii() => zparse::CsvConfig::default().with_delimiter(ch as u8),
+        _ => zparse::CsvConfig::default(),
+    }
+}
+
+fn parse_to_json(
+    input: &str,
+    format: InputFormat,
+    csv_delimiter: Option<char>,
+) -> Result<serde_json::Value, String> {
+    let csv_config = csv_config_from_delimiter(csv_delimiter);
     let json = if matches!(format, InputFormat::Jsonc) {
         let config = zparse::JsonConfig {
             allow_comments: true,
@@ -162,7 +190,20 @@ fn parse_to_json(input: &str, format: InputFormat) -> Result<serde_json::Value, 
             input,
             format.into(),
             zparse::Format::Json,
-            &zparse::ConvertOptions { json: config },
+            &zparse::ConvertOptions {
+                json: config,
+                csv: csv_config,
+            },
+        )
+    } else if matches!(format, InputFormat::Csv) && csv_delimiter.is_some() {
+        zparse::convert_with_options(
+            input,
+            format.into(),
+            zparse::Format::Json,
+            &zparse::ConvertOptions {
+                csv: csv_config,
+                ..Default::default()
+            },
         )
     } else {
         zparse::convert(input, format.into(), zparse::Format::Json)

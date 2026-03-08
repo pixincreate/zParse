@@ -110,6 +110,26 @@ pub fn convert(input: &str, from: &str, to: &str) -> Result<String, JsValue> {
         .map_err(|e| serialize_to_js(&JsError::from(e)))
 }
 
+/// Convert CSV with a custom delimiter to another format
+/// - input: the CSV input string
+/// - to: target format ("json", "csv", "toml", "yaml", "xml")
+/// - delimiter: single ASCII character used as field separator (e.g. ";" or "\t")
+/// Returns converted string or throws error
+#[wasm_bindgen]
+pub fn convert_csv(input: &str, to: &str, delimiter: &str) -> Result<String, JsValue> {
+    let to_format = parse_format(to).map_err(|e| serialize_to_js(&e))?;
+
+    let delim_byte = parse_csv_delimiter(delimiter).map_err(|e| serialize_to_js(&e))?;
+    let csv_config = zparse::CsvConfig::default().with_delimiter(delim_byte);
+    let options = zparse::ConvertOptions {
+        csv: csv_config,
+        ..Default::default()
+    };
+
+    zparse::convert_with_options(input, zparse::Format::Csv, to_format, &options)
+        .map_err(|e| serialize_to_js(&JsError::from(e)))
+}
+
 /// Parse content to JSON
 /// - content: the input string
 /// - format: source format ("json", "csv", "toml", "yaml", "xml")
@@ -154,6 +174,41 @@ fn parse_format(s: &str) -> Result<Format, JsError> {
         "xml" => Ok(Format::Xml),
         _ => Err(JsError::unknown_format(s)),
     }
+}
+
+fn parse_csv_delimiter(s: &str) -> Result<u8, JsError> {
+    let mut chars = s.chars();
+    let ch = chars.next().ok_or_else(|| JsError {
+        kind: "InvalidToken".to_string(),
+        message: "CSV delimiter must be a single ASCII character".to_string(),
+        span: None,
+    })?;
+    if chars.next().is_some() {
+        return Err(JsError {
+            kind: "InvalidToken".to_string(),
+            message: "CSV delimiter must be a single character".to_string(),
+            span: None,
+        });
+    }
+    if !ch.is_ascii() {
+        return Err(JsError {
+            kind: "InvalidToken".to_string(),
+            message: "CSV delimiter must be an ASCII character".to_string(),
+            span: None,
+        });
+    }
+    let byte = ch as u8;
+    if matches!(byte, b'\n' | b'\r' | b'"') {
+        return Err(JsError {
+            kind: "InvalidToken".to_string(),
+            message: format!(
+                "CSV delimiter {:?} conflicts with record separators or quoting rules",
+                ch
+            ),
+            span: None,
+        });
+    }
+    Ok(byte)
 }
 
 #[cfg(test)]

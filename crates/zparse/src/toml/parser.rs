@@ -134,8 +134,7 @@ impl<'a> Parser<'a> {
         };
 
         let span = token.span;
-        let token_len = span.end.offset.saturating_sub(span.start.offset);
-        self.bytes_parsed = self.bytes_parsed.saturating_add(token_len);
+        self.bytes_parsed = span.end.offset;
 
         if self.config.max_size > 0 && self.bytes_parsed > self.config.max_size {
             return Err(Error::at(
@@ -143,8 +142,8 @@ impl<'a> Parser<'a> {
                     max: self.config.max_size,
                 },
                 self.bytes_parsed,
-                1,
-                1,
+                span.end.line,
+                span.end.col,
             ));
         }
 

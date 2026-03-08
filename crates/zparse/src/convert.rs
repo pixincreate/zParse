@@ -1,8 +1,8 @@
 //! Format conversion utilities
 
+use crate::csv::Parser as CsvParser;
 use crate::csv::infer_primitive_value;
 use crate::csv::parser::Config as CsvConfig;
-use crate::csv::Parser as CsvParser;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;

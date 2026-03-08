@@ -6,22 +6,72 @@ use crate::error::{Error, ErrorKind, Pos, Result, Span};
 use crate::lexer::Cursor;
 use crate::xml::model::{Content, Document, Element};
 
+pub const DEFAULT_MAX_SIZE: usize = 10 * 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Config {
+    pub max_size: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            max_size: DEFAULT_MAX_SIZE,
+        }
+    }
+}
+
+impl Config {
+    pub const fn new(max_size: usize) -> Self {
+        Self { max_size }
+    }
+
+    pub const fn unlimited() -> Self {
+        Self { max_size: 0 }
+    }
+}
+
 /// XML parser
 #[derive(Debug)]
 pub struct Parser<'a> {
     cursor: Cursor<'a>,
+    config: Config,
 }
 
 impl<'a> Parser<'a> {
-    /// Create a new XML parser
     pub const fn new(input: &'a [u8]) -> Self {
         Self {
             cursor: Cursor::new(input),
+            config: Config {
+                max_size: DEFAULT_MAX_SIZE,
+            },
         }
     }
 
-    /// Parse an XML document
+    pub fn with_config(input: &'a [u8], config: Config) -> Self {
+        Self {
+            cursor: Cursor::new(input),
+            config,
+        }
+    }
+
+    pub const fn config(&self) -> &Config {
+        &self.config
+    }
+
     pub fn parse(&mut self) -> Result<Document> {
+        if self.config.max_size > 0 && self.cursor.remaining().len() > self.config.max_size {
+            let pos = self.cursor.position();
+            return Err(Error::at(
+                ErrorKind::MaxSizeExceeded {
+                    max: self.config.max_size,
+                },
+                pos.offset,
+                pos.line,
+                pos.col,
+            ));
+        }
+
         self.skip_whitespace();
         let root = self.parse_element()?;
         self.skip_whitespace();

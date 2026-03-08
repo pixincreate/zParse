@@ -34,7 +34,7 @@ pub mod convert;
 pub use convert::{ConvertOptions, Format, convert, convert_with_options};
 
 pub mod csv;
-pub use csv::Parser as CsvParser;
+pub use csv::{Config as CsvConfig, Parser as CsvParser};
 
 /// Detect input format from a file path extension (case-insensitive).
 ///
@@ -60,7 +60,8 @@ pub mod yaml;
 pub use json::{Config, Event, Parser};
 pub use toml::{Config as TomlConfig, Parser as TomlParser};
 pub use xml::{
-    Content as XmlContent, Document as XmlDocument, Element as XmlElement, Parser as XmlParser,
+    Config as XmlConfig, Content as XmlContent, Document as XmlDocument, Element as XmlElement,
+    Parser as XmlParser,
 };
 pub use yaml::{Config as YamlConfig, Parser as YamlParser};
 
@@ -91,9 +92,21 @@ pub fn from_csv_str(s: &str) -> Result<Value> {
     parser.parse()
 }
 
+/// Parse CSV from string with custom configuration
+pub fn from_csv_str_with_config(s: &str, config: CsvConfig) -> Result<Value> {
+    let mut parser = CsvParser::with_config(s.as_bytes(), config);
+    parser.parse()
+}
+
 /// Parse CSV from bytes
 pub fn from_csv_bytes(bytes: &[u8]) -> Result<Value> {
     let mut parser = CsvParser::new(bytes);
+    parser.parse()
+}
+
+/// Parse CSV from bytes with custom configuration
+pub fn from_csv_bytes_with_config(bytes: &[u8], config: CsvConfig) -> Result<Value> {
+    let mut parser = CsvParser::with_config(bytes, config);
     parser.parse()
 }
 
@@ -139,9 +152,21 @@ pub fn from_xml_str(s: &str) -> Result<XmlDocument> {
     parser.parse()
 }
 
+/// Parse XML from string with custom configuration
+pub fn from_xml_str_with_config(s: &str, config: XmlConfig) -> Result<XmlDocument> {
+    let mut parser = XmlParser::with_config(s.as_bytes(), config);
+    parser.parse()
+}
+
 /// Parse XML from bytes
 pub fn from_xml_bytes(bytes: &[u8]) -> Result<XmlDocument> {
     let mut parser = XmlParser::new(bytes);
+    parser.parse()
+}
+
+/// Parse XML from bytes with custom configuration
+pub fn from_xml_bytes_with_config(bytes: &[u8], config: XmlConfig) -> Result<XmlDocument> {
+    let mut parser = XmlParser::with_config(bytes, config);
     parser.parse()
 }
 

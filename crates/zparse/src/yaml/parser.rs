@@ -7,6 +7,8 @@ use crate::lexer::yaml::{YamlLexer, YamlToken, YamlTokenKind};
 use crate::value::{Array, Object, Value};
 use crate::yaml::event::Event;
 
+pub const DEFAULT_MAX_DEPTH: u16 = 128;
+
 /// Configuration for YAML parser
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Config {
@@ -16,7 +18,9 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { max_depth: 128 }
+        Self {
+            max_depth: DEFAULT_MAX_DEPTH,
+        }
     }
 }
 
@@ -34,7 +38,7 @@ pub struct Parser<'a> {
     config: Config,
     depth: u16,
     events: VecDeque<Event>,
-    parsed: Option<Value>,
+    parsed_once: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -51,21 +55,20 @@ impl<'a> Parser<'a> {
             config,
             depth: 0,
             events: VecDeque::new(),
-            parsed: None,
+            parsed_once: false,
         }
     }
 
     /// Parse entire document
     pub fn parse(&mut self) -> Result<Value> {
+        self.parsed_once = true;
+
         let token = self.peek_non_newline()?;
         if token.kind == YamlTokenKind::Eof {
-            self.parsed = Some(Value::Null);
             return Ok(Value::Null);
         }
 
-        let value = self.parse_block()?;
-        self.parsed = Some(value.clone());
-        Ok(value)
+        self.parse_block()
     }
 
     /// Get next event
@@ -74,7 +77,11 @@ impl<'a> Parser<'a> {
             return Ok(Some(event));
         }
 
-        if self.parsed.is_none() {
+        if self.parsed_once {
+            return Ok(None);
+        }
+
+        if self.events.is_empty() {
             let value = self.parse()?;
             emit_events(&value, &mut self.events);
         }
@@ -126,8 +133,8 @@ impl<'a> Parser<'a> {
             YamlTokenKind::Scalar(_) | YamlTokenKind::QuotedScalar(_) => {
                 self.parse_mapping_or_scalar()
             }
-            YamlTokenKind::LeftBracket => self.parse_flow_sequence(),
-            YamlTokenKind::LeftBrace => self.parse_flow_mapping(),
+            YamlTokenKind::LeftBracket => self.parse_flow_sequence(token.span),
+            YamlTokenKind::LeftBrace => self.parse_flow_mapping(token.span),
             _ => Err(Error::with_message(
                 ErrorKind::InvalidToken,
                 token.span,
@@ -137,7 +144,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_sequence(&mut self) -> Result<Value> {
-        self.bump_depth()?;
+        let opening = self.peek_non_newline()?;
+        self.bump_depth(opening.span)?;
         let mut items = Vec::new();
 
         loop {
@@ -204,8 +212,8 @@ impl<'a> Parser<'a> {
                 }
             }
             YamlTokenKind::QuotedScalar(value) => Ok(Value::String(value)),
-            YamlTokenKind::LeftBracket => self.parse_flow_sequence(),
-            YamlTokenKind::LeftBrace => self.parse_flow_mapping(),
+            YamlTokenKind::LeftBracket => self.parse_flow_sequence(token.span),
+            YamlTokenKind::LeftBrace => self.parse_flow_mapping(token.span),
             YamlTokenKind::Indent => {
                 let value = self.parse_block()?;
                 let end = self.next_non_newline()?;
@@ -222,8 +230,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_mapping(&mut self) -> Result<Value> {
-        self.bump_depth()?;
+    fn parse_mapping(&mut self, opening_span: Span) -> Result<Value> {
+        self.bump_depth(opening_span)?;
         let obj = self.parse_mapping_entries(None)?;
         self.depth = self.depth.saturating_sub(1);
         Ok(Value::Object(obj))
@@ -243,8 +251,9 @@ impl<'a> Parser<'a> {
             }
             YamlTokenKind::QuotedScalar(value) => Ok(Value::String(value)),
             _ => {
+                let first_span = first.span;
                 self.buffered = Some(first);
-                self.parse_mapping()
+                self.parse_mapping(first_span)
             }
         }
     }
@@ -320,8 +329,8 @@ impl<'a> Parser<'a> {
                     }
                     value
                 }
-                YamlTokenKind::LeftBracket => self.parse_flow_sequence()?,
-                YamlTokenKind::LeftBrace => self.parse_flow_mapping()?,
+                YamlTokenKind::LeftBracket => self.parse_flow_sequence(token.span)?,
+                YamlTokenKind::LeftBrace => self.parse_flow_mapping(token.span)?,
                 _ => {
                     return Err(Error::with_message(
                         ErrorKind::InvalidToken,
@@ -352,22 +361,22 @@ impl<'a> Parser<'a> {
         Ok(obj)
     }
 
-    fn bump_depth(&mut self) -> Result<()> {
+    fn bump_depth(&mut self, span: Span) -> Result<()> {
         self.depth = self.depth.saturating_add(1);
         if self.config.max_depth > 0 && self.depth > self.config.max_depth {
             return Err(Error::with_message(
                 ErrorKind::MaxDepthExceeded {
                     max: self.config.max_depth,
                 },
-                Span::empty(),
+                span,
                 "max depth exceeded".to_string(),
             ));
         }
         Ok(())
     }
 
-    fn parse_flow_sequence(&mut self) -> Result<Value> {
-        self.bump_depth()?;
+    fn parse_flow_sequence(&mut self, opening_span: Span) -> Result<Value> {
+        self.bump_depth(opening_span)?;
         let mut items = Vec::new();
 
         loop {
@@ -376,11 +385,11 @@ impl<'a> Parser<'a> {
                 YamlTokenKind::RightBracket => break,
                 YamlTokenKind::Comma => continue,
                 YamlTokenKind::LeftBracket => {
-                    let value = self.parse_flow_sequence()?;
+                    let value = self.parse_flow_sequence(token.span)?;
                     items.push(value);
                 }
                 YamlTokenKind::LeftBrace => {
-                    let value = self.parse_flow_mapping()?;
+                    let value = self.parse_flow_mapping(token.span)?;
                     items.push(value);
                 }
                 YamlTokenKind::Scalar(value) => {
@@ -403,8 +412,8 @@ impl<'a> Parser<'a> {
         Ok(Value::Array(Array(items)))
     }
 
-    fn parse_flow_mapping(&mut self) -> Result<Value> {
-        self.bump_depth()?;
+    fn parse_flow_mapping(&mut self, opening_span: Span) -> Result<Value> {
+        self.bump_depth(opening_span)?;
         let mut obj = Object::new();
 
         loop {
@@ -426,8 +435,8 @@ impl<'a> Parser<'a> {
                     let value = match value_token.kind {
                         YamlTokenKind::Scalar(value) => parse_scalar_value(&value),
                         YamlTokenKind::QuotedScalar(value) => Value::String(value),
-                        YamlTokenKind::LeftBracket => self.parse_flow_sequence()?,
-                        YamlTokenKind::LeftBrace => self.parse_flow_mapping()?,
+                        YamlTokenKind::LeftBracket => self.parse_flow_sequence(value_token.span)?,
+                        YamlTokenKind::LeftBrace => self.parse_flow_mapping(value_token.span)?,
                         _ => {
                             return Err(Error::with_message(
                                 ErrorKind::InvalidToken,

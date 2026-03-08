@@ -4,4 +4,4 @@ pub mod model;
 pub mod parser;
 
 pub use model::{Content, Document, Element};
-pub use parser::Parser;
+pub use parser::{Config, Parser};

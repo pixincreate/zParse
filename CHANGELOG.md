@@ -11,12 +11,15 @@
 
 ### Refactor
 
-- Migrate inline tests to dedicated integration test suite for better organization and faster incremental builds
+- Deduplicate conversion string escaping across JSON/TOML/YAML serializers
+- Standardize parser defaults and limit diagnostics across JSON/TOML/YAML
+- Add configurable CSV/XML parser settings with new `from_*_with_config` APIs
 
 ### Chore
 
 - Update toml requirement from 0.9.11 to 1.0.2
 - Add workflow dispatch for manual CI triggers
+- Add focused integration coverage for CSV/XML config entrypoints and parser guards
 
 ### CI
 
@@ -25,6 +28,9 @@
 ### Fix
 
 - Fix YAML quoted scalar coercion so ambiguous quoted values (for example `"InF"`) remain strings instead of being parsed as infinity
+- Restore `const` parser constructors for CSV/XML to preserve public API compatibility
+- Prevent YAML `next_event()` from re-parsing after `parse()` consumption
+- Reject invalid CSV delimiters (`\n`, `\r`, `"`) and tighten max-size error reporting
 
 ## [2.0.5] - 2026-02-09
 

@@ -271,18 +271,23 @@ fn serialize_json(value: &Value) -> String {
     }
 }
 
+fn escape_string(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
 fn escape_json(input: &str) -> String {
-    input
-        .chars()
-        .flat_map(|ch| match ch {
-            '\\' => "\\\\".chars().collect::<Vec<_>>(),
-            '"' => "\\\"".chars().collect::<Vec<_>>(),
-            '\n' => "\\n".chars().collect::<Vec<_>>(),
-            '\r' => "\\r".chars().collect::<Vec<_>>(),
-            '\t' => "\\t".chars().collect::<Vec<_>>(),
-            _ => vec![ch],
-        })
-        .collect()
+    escape_string(input)
 }
 
 fn serialize_toml(value: &Value) -> Result<String> {
@@ -423,17 +428,7 @@ fn xml_leaf_to_value(element: &XmlElement) -> Result<Value> {
 }
 
 fn escape_toml(input: &str) -> String {
-    input
-        .chars()
-        .flat_map(|ch| match ch {
-            '\\' => "\\\\".chars().collect::<Vec<_>>(),
-            '"' => "\\\"".chars().collect::<Vec<_>>(),
-            '\n' => "\\n".chars().collect::<Vec<_>>(),
-            '\r' => "\\r".chars().collect::<Vec<_>>(),
-            '\t' => "\\t".chars().collect::<Vec<_>>(),
-            _ => vec![ch],
-        })
-        .collect()
+    escape_string(input)
 }
 
 fn serialize_yaml(value: &Value, indent: usize) -> String {
@@ -468,17 +463,7 @@ fn serialize_yaml(value: &Value, indent: usize) -> String {
 }
 
 fn escape_yaml(input: &str) -> String {
-    input
-        .chars()
-        .flat_map(|ch| match ch {
-            '\\' => "\\\\".chars().collect::<Vec<_>>(),
-            '"' => "\\\"".chars().collect::<Vec<_>>(),
-            '\n' => "\\n".chars().collect::<Vec<_>>(),
-            '\r' => "\\r".chars().collect::<Vec<_>>(),
-            '\t' => "\\t".chars().collect::<Vec<_>>(),
-            _ => vec![ch],
-        })
-        .collect()
+    escape_string(input)
 }
 
 fn format_datetime(dt: &TomlDatetime) -> String {
@@ -532,19 +517,18 @@ fn element_to_value(element: &XmlElement) -> Value {
     for child in &element.children {
         if let XmlContent::Element(child) = child {
             let value = element_to_value(child);
-            match obj.get(&child.name) {
-                Some(Value::Array(arr)) => {
-                    let mut items = arr.clone();
-                    items.push(value);
-                    obj.insert(&child.name, Value::Array(items));
+            if let Some(existing) = obj.get_mut(&child.name) {
+                match existing {
+                    Value::Array(items) => {
+                        items.push(value);
+                    }
+                    _ => {
+                        let previous = std::mem::replace(existing, Value::Null);
+                        *existing = Value::Array(vec![previous, value].into());
+                    }
                 }
-                Some(existing) => {
-                    let items = vec![existing.clone(), value];
-                    obj.insert(&child.name, Value::Array(items.into()));
-                }
-                None => {
-                    obj.insert(&child.name, value);
-                }
+            } else {
+                obj.insert(&child.name, value);
             }
         }
     }

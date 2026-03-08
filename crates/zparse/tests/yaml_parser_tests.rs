@@ -142,3 +142,14 @@ fn test_parse_nested_quoted_scalar_block_value() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_next_event_after_parse_does_not_reparse() -> Result<()> {
+    let input = b"name: John\n";
+    let mut parser = Parser::new(input);
+    let _ = parser.parse()?;
+
+    let next = parser.next_event()?;
+    ensure_eq(next, None)?;
+    Ok(())
+}

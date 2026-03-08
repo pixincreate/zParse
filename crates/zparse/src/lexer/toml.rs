@@ -54,7 +54,14 @@ impl<'a> TomlLexer<'a> {
 
     /// Get the next token from the input
     pub fn next_token(&mut self) -> Result<TomlToken> {
-        self.skip_space();
+        loop {
+            self.skip_space();
+            if self.cursor.current() == Some(b'#') {
+                self.skip_comment();
+                continue;
+            }
+            break;
+        }
 
         let start = self.cursor.position();
 
@@ -63,10 +70,6 @@ impl<'a> TomlLexer<'a> {
             Some(b'\n') => {
                 self.cursor.advance();
                 TomlTokenKind::Newline
-            }
-            Some(b'#') => {
-                self.skip_comment();
-                return self.next_token();
             }
             Some(b'[') => {
                 if self.cursor.peek(1) == Some(b'[') {

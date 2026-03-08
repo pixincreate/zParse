@@ -66,16 +66,13 @@ impl<'a> JsonLexer<'a> {
                 b't' => self.lex_true()?,
                 b'f' => self.lex_false()?,
                 b'-' | b'0'..=b'9' => self.lex_number()?,
-                b'/' if self.allow_comments => {
-                    self.skip_comment()?;
-                    return self.next_token();
-                }
                 _ => {
+                    let pos = self.cursor.position();
                     return Err(Error::at(
                         ErrorKind::InvalidToken,
-                        start.offset,
-                        start.line,
-                        start.col,
+                        pos.offset,
+                        pos.line,
+                        pos.col,
                     ));
                 }
             },

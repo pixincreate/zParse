@@ -394,6 +394,34 @@ fn test_depth_limit() -> Result<()> {
 }
 
 #[test]
+fn test_depth_limit_reports_opener_position() -> Result<()> {
+    let input = br#"{
+  "a": {
+    "b": {
+      "c": 1
+    }
+  }
+}"#;
+    let config = Config::new(2, 0);
+    let mut parser = Parser::with_config(input, config);
+
+    let result = parser.parse_value();
+    match result {
+        Err(err) if matches!(err.kind(), ErrorKind::MaxDepthExceeded { max: 2 }) => {
+            let pos = err.span().start;
+            if pos.line <= 1 {
+                return fail(format!(
+                    "expected opener line > 1 for depth error, got line {}",
+                    pos.line
+                ));
+            }
+            Ok(())
+        }
+        _ => fail("Expected max depth error with opener position".to_string()),
+    }
+}
+
+#[test]
 fn test_size_limit() -> Result<()> {
     let input = b"1234567890";
     let config = Config::new(0, 5); // max size of 5 bytes
@@ -405,6 +433,22 @@ fn test_size_limit() -> Result<()> {
         Err(err) if matches!(err.kind(), ErrorKind::MaxSizeExceeded { max: 5 })
     ) {
         return fail("Expected max size error".to_string());
+    }
+    Ok(())
+}
+
+#[test]
+fn test_size_limit_counts_ignorable_prefix_with_comments() -> Result<()> {
+    let input = b"/* very long comment prefix */\n123";
+    let config = Config::new(0, 10).with_comments(true);
+    let mut parser = Parser::with_config(input, config);
+
+    let result = parser.parse_value();
+    if !matches!(
+        result,
+        Err(err) if matches!(err.kind(), ErrorKind::MaxSizeExceeded { max: 10 })
+    ) {
+        return fail("Expected max size error counting ignorable prefix".to_string());
     }
     Ok(())
 }

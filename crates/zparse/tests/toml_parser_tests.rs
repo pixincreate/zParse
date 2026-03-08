@@ -2,7 +2,7 @@ use time::format_description::well_known::Rfc3339;
 use time::macros::format_description;
 use time::{Date, OffsetDateTime, PrimitiveDateTime, Time};
 use zparse::error::{Error, ErrorKind, Result};
-use zparse::toml::parser::Parser;
+use zparse::toml::parser::{Config, Parser};
 use zparse::{Span, TomlDatetime, Value};
 
 fn ensure_eq<T: PartialEq + std::fmt::Debug>(left: T, right: T) -> Result<()> {
@@ -223,6 +223,27 @@ color = \"gray\"\n";
             ErrorKind::InvalidToken,
             Span::empty(),
             "expected object".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_size_limit_counts_ignorable_prefix() -> Result<()> {
+    let input = b"# long comment prefix\nkey = 1\n";
+    let config = Config::new(0, 10);
+    let mut parser = Parser::with_config(input, config);
+
+    let result = parser.parse();
+    if !matches!(
+        result,
+        Err(err) if matches!(err.kind(), ErrorKind::MaxSizeExceeded { max: 10 })
+    ) {
+        return Err(Error::with_message(
+            ErrorKind::InvalidToken,
+            Span::empty(),
+            "expected max-size error counting ignorable prefix".to_string(),
         ));
     }
 

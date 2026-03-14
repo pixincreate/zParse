@@ -1,158 +1,22 @@
-#![forbid(unsafe_code)]
+use axum::{Json, http::StatusCode};
+use serde_json::json;
 
-use axum::{
-    Json, Router,
-    extract::DefaultBodyLimit,
-    http::StatusCode,
-    routing::{get, post},
-};
-use serde::{Deserialize, Serialize};
-use tower_http::cors::{Any, CorsLayer};
+use crate::router::ApiResponse;
+use crate::types::{ApiResult, ConvertRequest, InputFormat, ParseRequest};
 
-pub mod api {
-    pub use super::{InputFormat, OutputFormat, create_router};
+pub async fn health() -> Json<serde_json::Value> {
+    Json(json!({"status": "ok"}))
 }
 
-#[derive(Debug, Deserialize)]
-struct ParseRequest {
-    content: String,
-    format: InputFormat,
-    csv_delimiter: Option<char>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ConvertRequest {
-    content: String,
-    from: InputFormat,
-    to: OutputFormat,
-    csv_delimiter: Option<char>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum InputFormat {
-    Json,
-    Jsonc,
-    Csv,
-    Toml,
-    Yaml,
-    Xml,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum OutputFormat {
-    Json,
-    Csv,
-    Toml,
-    Yaml,
-    Xml,
-}
-
-impl From<InputFormat> for zparse::Format {
-    fn from(value: InputFormat) -> Self {
-        match value {
-            InputFormat::Json => zparse::Format::Json,
-            InputFormat::Jsonc => zparse::Format::Json,
-            InputFormat::Csv => zparse::Format::Csv,
-            InputFormat::Toml => zparse::Format::Toml,
-            InputFormat::Yaml => zparse::Format::Yaml,
-            InputFormat::Xml => zparse::Format::Xml,
-        }
-    }
-}
-
-impl From<OutputFormat> for zparse::Format {
-    fn from(value: OutputFormat) -> Self {
-        match value {
-            OutputFormat::Json => zparse::Format::Json,
-            OutputFormat::Csv => zparse::Format::Csv,
-            OutputFormat::Toml => zparse::Format::Toml,
-            OutputFormat::Yaml => zparse::Format::Yaml,
-            OutputFormat::Xml => zparse::Format::Xml,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct ApiResult<T> {
-    success: bool,
-    data: Option<T>,
-    error: Option<String>,
-}
-
-impl<T> ApiResult<T> {
-    fn ok(data: T) -> Self {
-        Self {
-            success: true,
-            data: Some(data),
-            error: None,
-        }
-    }
-
-    fn err(error: impl Into<String>) -> Self {
-        Self {
-            success: false,
-            data: None,
-            error: Some(error.into()),
-        }
-    }
-}
-
-type ApiResponse<T> = (StatusCode, Json<ApiResult<T>>);
-
-/// Create the API router (exported for testing)
-pub fn create_router() -> Router {
-    const MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
-
-    Router::new()
-        .route("/api/health", get(health))
-        .route("/api/formats", get(formats))
-        .route("/api/parse", post(parse))
-        .route("/api/convert", post(convert))
-        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
-}
-
-#[tokio::main]
-async fn main() {
-    let app = create_router();
-
-    let host = std::env::var("ZPARSE_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = std::env::var("ZPARSE_PORT").unwrap_or_else(|_| "3000".to_string());
-    let addr = format!("{host}:{port}");
-
-    let listener = match tokio::net::TcpListener::bind(&addr).await {
-        Ok(listener) => listener,
-        Err(err) => {
-            eprintln!("failed to bind {addr}: {err}");
-            return;
-        }
-    };
-
-    if let Err(err) = axum::serve(listener, app).await {
-        eprintln!("server error: {err}");
-    }
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"status": "ok"}))
-}
-
-async fn formats() -> Json<Vec<&'static str>> {
+pub async fn formats() -> Json<Vec<&'static str>> {
     Json(vec!["json", "jsonc", "csv", "toml", "yaml", "xml"])
 }
 
-async fn parse(Json(payload): Json<ParseRequest>) -> ApiResponse<serde_json::Value> {
+pub async fn parse(Json(payload): Json<ParseRequest>) -> ApiResponse<serde_json::Value> {
     match parse_to_json(&payload.content, payload.format, payload.csv_delimiter) {
         Ok(data) => (StatusCode::OK, Json(ApiResult::ok(data))),
         Err(err) => {
-            let status = if err.starts_with("CSV delimiter") {
+            let status = if err.contains("CSV delimiter") {
                 StatusCode::BAD_REQUEST
             } else {
                 StatusCode::UNPROCESSABLE_ENTITY
@@ -162,7 +26,7 @@ async fn parse(Json(payload): Json<ParseRequest>) -> ApiResponse<serde_json::Val
     }
 }
 
-async fn convert(Json(payload): Json<ConvertRequest>) -> ApiResponse<String> {
+pub async fn convert(Json(payload): Json<ConvertRequest>) -> ApiResponse<String> {
     let csv_config = match csv_config_from_delimiter(payload.csv_delimiter) {
         Ok(config) => config,
         Err(err) => {

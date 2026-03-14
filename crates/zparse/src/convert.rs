@@ -1,8 +1,8 @@
 //! Format conversion utilities
 
+use crate::csv::Parser as CsvParser;
 use crate::csv::infer_primitive_value;
 use crate::csv::parser::Config as CsvConfig;
-use crate::csv::Parser as CsvParser;
 use crate::error::{Error, ErrorKind, Result, Span};
 use crate::json::{Config as JsonConfig, Parser as JsonParser};
 use crate::toml::Parser as TomlParser;
@@ -324,13 +324,123 @@ fn serialize_toml(value: &Value) -> Result<String> {
     }
 }
 
-fn serialize_toml_object(obj: &Object) -> String {
+fn serialize_toml_object(root: &Object) -> String {
     let mut lines = Vec::new();
-    for (key, value) in obj.iter() {
-        let escaped_key = escape_toml_key(key);
-        lines.push(format!("{escaped_key} = {}", serialize_toml_value(value)));
+    let mut tables: Vec<(String, &Object)> = Vec::new();
+
+    // First pass: collect root-level non-table values
+    for (key, value) in root.iter() {
+        match value {
+            Value::Object(nested) => {
+                // Defer tables to second pass
+                tables.push((key.clone(), nested));
+            }
+            Value::Array(arr) if arr.iter().all(|v| matches!(v, Value::Object(_))) => {
+                // Array of tables - handle separately
+                lines.push(format!(
+                    "[[{}]]",
+                    key.split('.')
+                        .map(escape_toml_key)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                ));
+                for item in arr {
+                    if let Value::Object(obj) = item {
+                        serialize_inline_table(&mut lines, obj, "");
+                    }
+                }
+            }
+            _ => {
+                // Simple value at root
+                let escaped_key = escape_toml_key(key);
+                lines.push(format!("{escaped_key} = {}", serialize_toml_value(value)));
+            }
+        }
     }
+
+    // Second pass: output [table] sections for nested objects
+    for (key, obj) in tables {
+        serialize_toml_table_section(&mut lines, &key, obj);
+    }
+
     lines.join("\n")
+}
+
+fn serialize_toml_table_section(lines: &mut Vec<String>, key: &str, obj: &Object) {
+    // Output table header
+    lines.push(format!(
+        "[{}]",
+        key.split('.')
+            .map(escape_toml_key)
+            .collect::<Vec<_>>()
+            .join(".")
+    ));
+
+    let mut nested_tables: Vec<(String, &Object)> = Vec::new();
+
+    // Output simple values in this table
+    for (k, value) in obj.iter() {
+        match value {
+            Value::Object(nested) => {
+                nested_tables.push((format!("{key}.{k}"), nested));
+            }
+            Value::Array(arr) if arr.iter().all(|v| matches!(v, Value::Object(_))) => {
+                // Array of tables - output inline for now
+                lines.push(format!(
+                    "{} = [{}]",
+                    escape_toml_key(k),
+                    arr.iter()
+                        .map(|v| {
+                            if let Value::Object(o) = v {
+                                let entries: Vec<String> = o
+                                    .iter()
+                                    .map(|(ik, iv)| {
+                                        format!(
+                                            "{} = {}",
+                                            escape_toml_key(ik),
+                                            serialize_toml_value(iv)
+                                        )
+                                    })
+                                    .collect();
+                                format!("{{{}}}", entries.join(", "))
+                            } else {
+                                String::new()
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            _ => {
+                let escaped_key = escape_toml_key(k);
+                lines.push(format!("{escaped_key} = {}", serialize_toml_value(value)));
+            }
+        }
+    }
+
+    // Recurse into nested tables
+    for (full_key, nested) in nested_tables {
+        serialize_toml_table_section(lines, &full_key, nested);
+    }
+}
+
+fn serialize_inline_table(lines: &mut Vec<String>, obj: &Object, prefix: &str) {
+    for (key, value) in obj.iter() {
+        let full_key = if prefix.is_empty() {
+            escape_toml_key(key)
+        } else {
+            format!("{prefix}.{}", escape_toml_key(key))
+        };
+        match value {
+            Value::Object(_) | Value::Array(_) => {
+                // Inline representation for complex nested types
+                lines.push(format!("{full_key} = {}", serialize_toml_value(value)));
+            }
+            _ => {
+                lines.push(format!("{full_key} = {}", serialize_toml_value(value)));
+            }
+        }
+    }
 }
 
 fn serialize_toml_value(value: &Value) -> String {

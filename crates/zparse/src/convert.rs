@@ -598,17 +598,34 @@ fn element_to_value(element: &XmlElement) -> Value {
     }
 
     if obj.is_empty() {
-        Value::Object(Object::new())
+        Value::Null
     } else {
         Value::Object(obj)
     }
 }
 
 fn value_to_xml(value: &Value) -> XmlDocument {
+    // If value is an Object with a single key, use that key as root name
+    // This prevents double-wrapping on XML→Value→XML round-trips
+    let (root_name, children) = match value {
+        Value::Object(obj) => {
+            if let Some((key, val)) = obj.iter().next() {
+                if obj.len() == 1 {
+                    (key.clone(), value_to_children(val))
+                } else {
+                    ("root".to_string(), value_to_children(value))
+                }
+            } else {
+                ("root".to_string(), value_to_children(value))
+            }
+        }
+        _ => ("root".to_string(), value_to_children(value)),
+    };
+
     let root = XmlElement {
-        name: "root".to_string(),
+        name: root_name,
         attributes: IndexMap::new(),
-        children: value_to_children(value),
+        children,
     };
     XmlDocument { root }
 }
@@ -714,10 +731,17 @@ fn serialize_element(element: &XmlElement, output: &mut String) {
 }
 
 fn escape_xml(input: &str) -> String {
-    input
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+    // Single-pass XML escaping to avoid multiple allocations
+    let mut output = String::with_capacity(input.len());
+    for c in input.chars() {
+        match c {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&apos;"),
+            _ => output.push(c),
+        }
+    }
+    output
 }

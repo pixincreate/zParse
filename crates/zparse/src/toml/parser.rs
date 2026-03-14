@@ -538,23 +538,9 @@ fn parse_toml_datetime(value: &str) -> Result<TomlDatetime> {
 fn ensure_table_path<'a>(root: &'a mut Object, path: &[String]) -> Result<&'a mut Object> {
     let mut current = root;
     for part in path {
-        let entry = current.get(part).cloned();
-        match entry {
-            Some(Value::Object(_)) => {
-                current = current
-                    .get_mut(part)
-                    .and_then(|value| match value {
-                        Value::Object(obj) => Some(obj),
-                        _ => None,
-                    })
-                    .ok_or_else(|| {
-                        Error::with_message(
-                            ErrorKind::InvalidKey,
-                            Span::empty(),
-                            "expected table".to_string(),
-                        )
-                    })?;
-            }
+        // Check type without cloning by matching on immutable reference first
+        match current.get(part) {
+            Some(Value::Object(_)) => {}
             Some(Value::Array(_)) => {
                 return Err(Error::with_message(
                     ErrorKind::InvalidArray,
@@ -571,21 +557,22 @@ fn ensure_table_path<'a>(root: &'a mut Object, path: &[String]) -> Result<&'a mu
             }
             None => {
                 current.insert(part, Object::new());
-                current = current
-                    .get_mut(part)
-                    .and_then(|value| match value {
-                        Value::Object(obj) => Some(obj),
-                        _ => None,
-                    })
-                    .ok_or_else(|| {
-                        Error::with_message(
-                            ErrorKind::InvalidKey,
-                            Span::empty(),
-                            "expected table".to_string(),
-                        )
-                    })?;
             }
         }
+        // Now get mutable reference (safe because we checked type above)
+        current = current
+            .get_mut(part)
+            .and_then(|value| match value {
+                Value::Object(obj) => Some(obj),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                Error::with_message(
+                    ErrorKind::InvalidKey,
+                    Span::empty(),
+                    "expected table".to_string(),
+                )
+            })?;
     }
     Ok(current)
 }
@@ -602,17 +589,20 @@ fn ensure_array_table_path<'a>(root: &'a mut Object, path: &[String]) -> Result<
     let mut current = root;
     for (index, part) in path.iter().enumerate() {
         let is_last = index + 1 == path.len();
-        let entry = current.get(part).cloned();
+
         if is_last {
-            match entry {
+            // Check existing type without cloning
+            match current.get(part) {
                 None => {
                     let mut array = Array::new();
                     array.push(Object::new());
                     current.insert(part, Value::Array(array));
                 }
-                Some(Value::Array(mut array)) => {
-                    array.push(Object::new());
-                    current.insert(part, Value::Array(array));
+                Some(Value::Array(_)) => {
+                    // Get mutable reference to push new entry
+                    if let Some(Value::Array(array)) = current.get_mut(part) {
+                        array.push(Object::new());
+                    }
                 }
                 Some(_) => {
                     return Err(Error::with_message(
@@ -653,7 +643,8 @@ fn ensure_array_table_path<'a>(root: &'a mut Object, path: &[String]) -> Result<
             return Ok(last);
         }
 
-        match entry {
+        // Check type without cloning
+        match current.get(part) {
             Some(Value::Object(_)) => {
                 current = current
                     .get_mut(part)
@@ -744,7 +735,7 @@ fn get_array_table_last<'a>(root: &'a mut Object, path: &[String]) -> Result<&'a
     let mut current = root;
     for (index, part) in path.iter().enumerate() {
         let is_last = index + 1 == path.len();
-        let entry = current.get(part).cloned();
+
         if is_last {
             let array = current
                 .get_mut(part)
@@ -776,7 +767,8 @@ fn get_array_table_last<'a>(root: &'a mut Object, path: &[String]) -> Result<&'a
             return Ok(last);
         }
 
-        match entry {
+        // Check type without cloning
+        match current.get(part) {
             Some(Value::Object(_)) => {
                 current = current
                     .get_mut(part)
@@ -865,8 +857,7 @@ fn insert_dotted_key_into(table: &mut Object, key: &[String], value: Value) -> R
     })?;
 
     for part in parts {
-        let entry = current.get(part).cloned();
-        match entry {
+        match current.get(part) {
             Some(Value::Object(_)) => {
                 current = current
                     .get_mut(part)

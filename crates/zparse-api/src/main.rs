@@ -1,6 +1,11 @@
 #![forbid(unsafe_code)]
 
-use axum::{Json, Router, extract::DefaultBodyLimit, routing::get, routing::post};
+use axum::{
+    Json, Router,
+    extract::DefaultBodyLimit,
+    http::StatusCode,
+    routing::{get, post},
+};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -65,18 +70,33 @@ impl From<OutputFormat> for zparse::Format {
     }
 }
 
+/// Unified API response type for both parse and convert endpoints
 #[derive(Debug, Serialize)]
-#[serde(tag = "status", rename_all = "lowercase")]
-enum ApiResponse {
-    Ok { data: serde_json::Value },
-    Err { error: String },
+struct ApiResult<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct ConvertResponse {
-    status: &'static str,
-    content: String,
+impl<T> ApiResult<T> {
+    fn ok(data: T) -> Self {
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
+    }
+
+    fn err(error: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            data: None,
+            error: Some(error.into()),
+        }
+    }
 }
+
+type ApiResponse<T> = (StatusCode, Json<ApiResult<T>>);
 
 #[tokio::main]
 async fn main() {
@@ -121,23 +141,33 @@ async fn formats() -> Json<Vec<&'static str>> {
     Json(vec!["json", "jsonc", "csv", "toml", "yaml", "xml"])
 }
 
-async fn parse(Json(payload): Json<ParseRequest>) -> Json<ApiResponse> {
+/// Parse content and return as JSON
+/// Returns 200 on success, 400 on parse error, 422 on invalid input
+async fn parse(Json(payload): Json<ParseRequest>) -> ApiResponse<serde_json::Value> {
     match parse_to_json(&payload.content, payload.format, payload.csv_delimiter) {
-        Ok(data) => Json(ApiResponse::Ok { data }),
-        Err(err) => Json(ApiResponse::Err { error: err }),
+        Ok(data) => (StatusCode::OK, Json(ApiResult::ok(data))),
+        Err(err) => {
+            // Return 400 for validation errors, 422 for parse failures
+            let status = if err.starts_with("CSV delimiter") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::UNPROCESSABLE_ENTITY
+            };
+            (status, Json(ApiResult::err(err)))
+        }
     }
 }
 
-async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
+/// Convert between formats
+/// Returns 200 on success, 400 on validation error, 422 on conversion error
+async fn convert(Json(payload): Json<ConvertRequest>) -> ApiResponse<String> {
     let csv_config = match csv_config_from_delimiter(payload.csv_delimiter) {
         Ok(config) => config,
         Err(err) => {
-            return Json(ConvertResponse {
-                status: "error",
-                content: err,
-            });
+            return (StatusCode::BAD_REQUEST, Json(ApiResult::err(err)));
         }
     };
+
     let result = if matches!(payload.from, InputFormat::Jsonc) {
         let config = zparse::JsonConfig {
             allow_comments: true,
@@ -168,14 +198,11 @@ async fn convert(Json(payload): Json<ConvertRequest>) -> Json<ConvertResponse> {
     };
 
     match result {
-        Ok(content) => Json(ConvertResponse {
-            status: "ok",
-            content,
-        }),
-        Err(err) => Json(ConvertResponse {
-            status: "error",
-            content: err.to_string(),
-        }),
+        Ok(content) => (StatusCode::OK, Json(ApiResult::ok(content))),
+        Err(err) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ApiResult::err(err.to_string())),
+        ),
     }
 }
 

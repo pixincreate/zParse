@@ -258,6 +258,26 @@ fn escape_csv_force_quoted(input: &str) -> String {
     format!("\"{}\"", input.replace('"', "\"\""))
 }
 
+/// Serialize a Value to JSON string
+pub fn to_json_string(value: &Value) -> String {
+    serialize_json(value)
+}
+
+/// Serialize a Value to TOML string
+pub fn to_toml_string(value: &Value) -> Result<String> {
+    serialize_toml(value)
+}
+
+/// Serialize a Value to YAML string
+pub fn to_yaml_string(value: &Value) -> String {
+    serialize_yaml(value, 0)
+}
+
+/// Serialize a Value to CSV string
+pub fn to_csv_string(value: &Value, delimiter: u8) -> Result<String> {
+    serialize_csv(value, delimiter)
+}
+
 fn serialize_json(value: &Value) -> String {
     match value {
         Value::Null => "null".to_string(),

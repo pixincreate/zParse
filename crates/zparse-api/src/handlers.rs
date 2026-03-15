@@ -1,6 +1,6 @@
-use axum::{http::StatusCode, response::IntoResponse, Json as AxumJson, response::Response};
+use axum::{Json as AxumJson, http::StatusCode, response::IntoResponse, response::Response};
 
-use crate::json::{json, json_error, JsonError, JsonResponse};
+use crate::json::{JsonError, JsonResponse, json, json_error};
 use crate::types::{ConvertRequest, InputFormat, ParseRequest};
 
 enum ApiResponse {
@@ -29,11 +29,12 @@ pub async fn parse(AxumJson(payload): AxumJson<ParseRequest>) -> impl IntoRespon
     match parse_to_json(&payload.content, payload.format, payload.csv_delimiter) {
         Ok(data) => ApiResponse::Ok(json(&data)),
         Err(err) => {
-            let status = if err.starts_with("CSV delimiter") || err.starts_with("Invalid CSV delimiter") {
-                StatusCode::BAD_REQUEST
-            } else {
-                StatusCode::UNPROCESSABLE_ENTITY
-            };
+            let status =
+                if err.starts_with("CSV delimiter") || err.starts_with("Invalid CSV delimiter") {
+                    StatusCode::BAD_REQUEST
+                } else {
+                    StatusCode::UNPROCESSABLE_ENTITY
+                };
             ApiResponse::Err(json_error(&err, status))
         }
     }
@@ -78,7 +79,10 @@ pub async fn convert(AxumJson(payload): AxumJson<ConvertRequest>) -> impl IntoRe
 
     match result {
         Ok(content) => ApiResponse::Ok(json(&content)),
-        Err(err) => ApiResponse::Err(json_error(&err.to_string(), StatusCode::UNPROCESSABLE_ENTITY)),
+        Err(err) => ApiResponse::Err(json_error(
+            &err.to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        )),
     }
 }
 
@@ -139,60 +143,11 @@ fn parse_to_json(
         }
         InputFormat::Toml => zparse::from_toml_str(input),
         InputFormat::Yaml => zparse::from_yaml_str(input),
-        InputFormat::Xml => {
-            zparse::convert(input, zparse::Format::Xml, zparse::Format::Json)
-                .and_then(|json_str| zparse::from_str(&json_str))
-        }
+        InputFormat::Xml => zparse::convert(input, zparse::Format::Xml, zparse::Format::Json)
+            .and_then(|json_str| zparse::from_str(&json_str)),
     };
 
     value
         .map_err(|err| err.to_string())
-        .map(|v| native_value_to_json(v))
-}
-
-fn native_value_to_json(value: zparse::Value) -> String {
-    match value {
-        zparse::Value::Null => "null".to_string(),
-        zparse::Value::Bool(b) => b.to_string(),
-        zparse::Value::Number(n) => {
-            if n.is_finite() {
-                n.to_string()
-            } else {
-                "null".to_string()
-            }
-        }
-        zparse::Value::String(s) => format!("\"{}\"", escape_json(&s)),
-        zparse::Value::Array(arr) => {
-            let items: Vec<String> = arr.into_iter().map(native_value_to_json).collect();
-            format!("[{}]", items.join(","))
-        }
-        zparse::Value::Object(obj) => {
-            let pairs: Vec<String> = obj
-                .into_iter()
-                .map(|(k, v)| format!("\"{}\":{}", escape_json(&k), native_value_to_json(v)))
-                .collect();
-            format!("{{{}}}", pairs.join(","))
-        }
-        zparse::Value::Datetime(dt) => {
-            format!("\"{:?}\"", dt)
-        }
-    }
-}
-
-fn escape_json(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => result.push_str("\\\""),
-            '\\' => result.push_str("\\\\"),
-            '\n' => result.push_str("\\n"),
-            '\r' => result.push_str("\\r"),
-            '\t' => result.push_str("\\t"),
-            '\u{08}' => result.push_str("\\b"),
-            '\u{0C}' => result.push_str("\\f"),
-            c if c.is_control() => result.push_str(&format!("\\u{:04x}", c as u32)),
-            c => result.push(c),
-        }
-    }
-    result
+        .map(|v| zparse::to_json_string(&v))
 }

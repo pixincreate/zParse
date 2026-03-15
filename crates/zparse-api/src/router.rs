@@ -1,8 +1,8 @@
 use axum::{
+    Router,
     extract::DefaultBodyLimit,
     http::HeaderValue,
     routing::{get, post},
-    Router,
 };
 use tower_http::cors::{Any, CorsLayer};
 

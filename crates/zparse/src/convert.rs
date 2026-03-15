@@ -281,10 +281,10 @@ fn serialize_json(value: &Value) -> String {
                 .collect();
             format!("{{{}}}", pairs.join(","))
         }
-        Value::Datetime(dt) => format!(
-            "\"{}\"",
-            format_datetime(dt).unwrap_or_else(|_| "null".to_string())
-        ),
+        Value::Datetime(dt) => match format_datetime(dt) {
+            Ok(s) => format!("\"{}\"", s),
+            Err(_) => "null".to_string(), // Fallback to null on error
+        },
     }
 }
 
@@ -752,9 +752,10 @@ fn value_to_children(value: &Value) -> Vec<XmlContent> {
         Value::Number(n) => vec![XmlContent::Text(n.to_string())],
         Value::Bool(b) => vec![XmlContent::Text(b.to_string())],
         Value::Null => Vec::new(),
-        Value::Datetime(dt) => vec![XmlContent::Text(
-            format_datetime(dt).unwrap_or_else(|_| "1979-05-27T07:32:00Z".to_string()),
-        )],
+        Value::Datetime(dt) => match format_datetime(dt) {
+            Ok(s) => vec![XmlContent::Text(s)],
+            Err(_) => Vec::new(), // Skip datetime on error
+        },
     }
 }
 

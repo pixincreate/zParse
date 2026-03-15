@@ -510,7 +510,7 @@ mod tests {
             .with_comments(true)
             .with_trailing_commas(true);
         let input = b"{}";
-        let parser = Parser::with_config(input, config.clone());
+        let parser = Parser::with_config(input, config);
         assert_eq!(parser.config().max_depth, 64);
         assert_eq!(parser.config().max_size, 1024);
         assert!(parser.config().allow_comments);

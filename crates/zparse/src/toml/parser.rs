@@ -47,6 +47,18 @@ impl Config {
             max_size,
         }
     }
+
+    /// Set maximum nesting depth (0 for unlimited)
+    pub const fn with_max_depth(mut self, max_depth: u16) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+
+    /// Set maximum input size in bytes (0 for unlimited)
+    pub const fn with_max_size(mut self, max_size: usize) -> Self {
+        self.max_size = max_size;
+        self
+    }
 }
 
 /// Streaming TOML parser with depth and size limits

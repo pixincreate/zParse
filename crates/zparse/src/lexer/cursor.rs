@@ -4,7 +4,7 @@ use crate::error::Pos;
 
 /// Cursor for navigating byte input with position tracking
 #[derive(Clone, Debug)]
-pub struct Cursor<'a> {
+pub(crate) struct Cursor<'a> {
     input: &'a [u8],
     pos: usize,
     line: u32,
@@ -13,7 +13,7 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Create cursor from byte slice
-    pub const fn new(input: &'a [u8]) -> Self {
+    pub(crate) const fn new(input: &'a [u8]) -> Self {
         Self {
             input,
             pos: 0,
@@ -25,7 +25,7 @@ impl<'a> Cursor<'a> {
     /// Get current byte without consuming
     #[allow(clippy::indexing_slicing)]
     // SAFETY: Bounds checked in condition
-    pub const fn current(&self) -> Option<u8> {
+    pub(crate) const fn current(&self) -> Option<u8> {
         if self.pos < self.input.len() {
             Some(self.input[self.pos])
         } else {
@@ -36,7 +36,7 @@ impl<'a> Cursor<'a> {
     /// Peek at byte ahead without consuming
     #[allow(clippy::indexing_slicing)]
     // SAFETY: Bounds checked in condition
-    pub const fn peek(&self, ahead: usize) -> Option<u8> {
+    pub(crate) const fn peek(&self, ahead: usize) -> Option<u8> {
         let idx = self.pos.saturating_add(ahead);
         if idx < self.input.len() {
             Some(self.input[idx])
@@ -48,7 +48,7 @@ impl<'a> Cursor<'a> {
     /// Peek at n bytes ahead without consuming
     #[allow(clippy::indexing_slicing)]
     // SAFETY: Bounds checked in condition
-    pub fn peek_bytes(&self, n: usize) -> Option<&[u8]> {
+    pub(crate) fn peek_bytes(&self, n: usize) -> Option<&[u8]> {
         let end = self.pos.saturating_add(n);
         if end <= self.input.len() {
             Some(&self.input[self.pos..end])
@@ -58,7 +58,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Advance cursor by n bytes
-    pub fn advance_by(&mut self, n: usize) {
+    pub(crate) fn advance_by(&mut self, n: usize) {
         for _ in 0..n {
             if self.is_eof() {
                 break;
@@ -68,7 +68,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Advance cursor by one byte
-    pub fn advance(&mut self) {
+    pub(crate) fn advance(&mut self) {
         if let Some(b) = self.current() {
             self.pos += 1;
             if b == b'\n' {
@@ -81,7 +81,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Skip whitespace
-    pub fn skip_whitespace(&mut self) {
+    pub(crate) fn skip_whitespace(&mut self) {
         while let Some(b) = self.current() {
             if matches!(b, b' ' | b'\t' | b'\n' | b'\r') {
                 self.advance();
@@ -92,7 +92,8 @@ impl<'a> Cursor<'a> {
     }
 
     /// Consume byte if it matches
-    pub fn consume(&mut self, expected: u8) -> bool {
+    #[cfg(test)]
+    fn consume(&mut self, expected: u8) -> bool {
         if self.current() == Some(expected) {
             self.advance();
             true
@@ -102,31 +103,79 @@ impl<'a> Cursor<'a> {
     }
 
     /// Get current position
-    pub const fn position(&self) -> Pos {
+    pub(crate) const fn position(&self) -> Pos {
         Pos::new(self.pos, self.line, self.col)
     }
 
     /// Check if at end of input
-    pub const fn is_eof(&self) -> bool {
+    pub(crate) const fn is_eof(&self) -> bool {
         self.pos >= self.input.len()
     }
 
     /// Get remaining bytes
     #[allow(clippy::indexing_slicing)]
     // SAFETY: Bounds checked - pos is always <= input.len()
-    pub fn remaining(&self) -> &[u8] {
+    pub(crate) fn remaining(&self) -> &[u8] {
         &self.input[self.pos..]
     }
 
     /// Get current position index
-    pub const fn pos(&self) -> usize {
+    pub(crate) const fn pos(&self) -> usize {
         self.pos
     }
 
     /// Get slice from start to current position
     #[allow(clippy::indexing_slicing)]
     // SAFETY: Bounds checked - start is expected to be a valid position <= pos <= input.len()
-    pub fn slice_from(&self, start: usize) -> &'a [u8] {
+    pub(crate) fn slice_from(&self, start: usize) -> &'a [u8] {
         &self.input[start..self.pos]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cursor_basic() {
+        let mut cursor = Cursor::new(b"hello");
+        assert_eq!(cursor.current(), Some(b'h'));
+        assert_eq!(cursor.peek(1), Some(b'e'));
+        cursor.advance();
+        assert_eq!(cursor.current(), Some(b'e'));
+    }
+
+    #[test]
+    fn test_cursor_whitespace() {
+        let mut cursor = Cursor::new(b"  \t\nhello");
+        cursor.skip_whitespace();
+        assert_eq!(cursor.current(), Some(b'h'));
+        assert_eq!(cursor.position().line, 2);
+    }
+
+    #[test]
+    fn test_cursor_consume() {
+        let mut cursor = Cursor::new(b"abc");
+        assert!(cursor.consume(b'a'));
+        assert!(!cursor.consume(b'z'));
+        assert_eq!(cursor.current(), Some(b'b'));
+    }
+
+    #[test]
+    fn test_cursor_eof() {
+        let cursor = Cursor::new(b"");
+        assert!(cursor.is_eof());
+        assert_eq!(cursor.current(), None);
+    }
+
+    #[test]
+    fn test_cursor_slice() {
+        let mut cursor = Cursor::new(b"hello world");
+        let start = cursor.pos();
+        cursor.advance();
+        cursor.advance();
+        cursor.advance();
+        cursor.advance();
+        assert_eq!(cursor.slice_from(start), b"hell");
     }
 }

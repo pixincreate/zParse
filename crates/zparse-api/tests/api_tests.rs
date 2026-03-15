@@ -5,7 +5,6 @@ use axum::{
 use serde_json::json;
 use tower::ServiceExt;
 
-// Helper to create the app for testing
 fn app() -> axum::Router {
     zparse_api::router::create_router()
 }

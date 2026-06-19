@@ -45,7 +45,7 @@ pub fn convert_with_options(
             && (options.json.allow_comments || options.json.allow_trailing_commas)
         {
             let value = parse_value(input, from, options)?;
-            return serialize_value(&value, to);
+            return serialize_value(&value, to, options);
         }
         return Ok(input.to_string());
     }
@@ -60,13 +60,13 @@ pub fn convert_with_options(
             let mut parser = XmlParser::new(input.as_bytes());
             let doc = parser.parse()?;
             let value = xml_to_csv_value(&doc)?;
-            serialize_value(&value, to)
+            serialize_value(&value, to, options)
         }
         (Format::Xml, _) => {
             let mut parser = XmlParser::new(input.as_bytes());
             let doc = parser.parse()?;
             let value = xml_to_value(&doc);
-            serialize_value(&value, to)
+            serialize_value(&value, to, options)
         }
         (_, Format::Xml) => {
             let value = parse_value(input, from, options)?;
@@ -76,7 +76,7 @@ pub fn convert_with_options(
         _ => {
             let value = parse_value(input, from, options)?;
             let value = normalize_for_target(value, from, to);
-            serialize_value(&value, to)
+            serialize_value(&value, to, options)
         }
     }
 }
@@ -118,10 +118,10 @@ fn parse_value(input: &str, format: Format, options: &ConvertOptions) -> Result<
     }
 }
 
-fn serialize_value(value: &Value, format: Format) -> Result<String> {
+fn serialize_value(value: &Value, format: Format, options: &ConvertOptions) -> Result<String> {
     match format {
         Format::Json => Ok(serialize_json(value)),
-        Format::Csv => serialize_csv(value),
+        Format::Csv => serialize_csv(value, options.csv.delimiter),
         Format::Toml => serialize_toml(value),
         Format::Yaml => Ok(serialize_yaml(value, 0)),
         Format::Xml => Err(Error::with_message(
@@ -132,7 +132,11 @@ fn serialize_value(value: &Value, format: Format) -> Result<String> {
     }
 }
 
-fn serialize_csv(value: &Value) -> Result<String> {
+fn serialize_csv(value: &Value, delimiter: u8) -> Result<String> {
+    // Safe: delimiter is validated ASCII (u8 to char)
+    #[allow(clippy::as_conversions)]
+    let delim_char = delimiter as char;
+    let delim_str = delim_char.to_string();
     let mut owned_rows = Array::new();
     let rows = match value {
         Value::Array(rows) => rows,
@@ -182,9 +186,9 @@ fn serialize_csv(value: &Value) -> Result<String> {
     output.push_str(
         &headers
             .iter()
-            .map(|header| escape_csv(header))
+            .map(|header| escape_csv(header, delimiter))
             .collect::<Vec<_>>()
-            .join(","),
+            .join(&delim_str),
     );
     output.push('\n');
 
@@ -202,40 +206,48 @@ fn serialize_csv(value: &Value) -> Result<String> {
             .map(|header| {
                 let value = obj.get(header).unwrap_or(&Value::Null);
                 let cell = match value {
-                    Value::Null => String::new(),
-                    Value::Bool(boolean) => boolean.to_string(),
+                    Value::Null => Ok(String::new()),
+                    Value::Bool(boolean) => Ok(boolean.to_string()),
                     Value::Number(number) => {
                         if number.is_finite() {
                             if number.fract() == 0.0 {
-                                format!("{number:.0}")
+                                Ok(format!("{number:.0}"))
                             } else {
-                                number.to_string()
+                                Ok(number.to_string())
                             }
                         } else {
-                            String::new()
+                            Ok(String::new())
                         }
                     }
-                    Value::String(text) => text.clone(),
+                    Value::String(text) => Ok(text.clone()),
                     Value::Datetime(dt) => format_datetime(dt),
-                    Value::Array(_) | Value::Object(_) => serialize_json(value),
-                };
-                if matches!(value, Value::String(_)) {
+                    Value::Array(_) | Value::Object(_) => Ok(serialize_json(value)),
+                }?;
+                let escaped = if matches!(value, Value::String(_)) {
                     escape_csv_force_quoted(&cell)
                 } else {
-                    escape_csv(&cell)
-                }
+                    escape_csv(&cell, delimiter)
+                };
+                Ok::<String, Error>(escaped)
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
-        output.push_str(&fields.join(","));
+        output.push_str(&fields.join(&delim_str));
         output.push('\n');
     }
 
     Ok(output)
 }
 
-fn escape_csv(input: &str) -> String {
-    if input.contains(',') || input.contains('"') || input.contains('\n') || input.contains('\r') {
+fn escape_csv(input: &str, delimiter: u8) -> String {
+    // Safe: delimiter is validated ASCII (u8 to char)
+    #[allow(clippy::as_conversions)]
+    let delim_char = delimiter as char;
+    if input.contains(delim_char)
+        || input.contains('"')
+        || input.contains('\n')
+        || input.contains('\r')
+    {
         format!("\"{}\"", input.replace('"', "\"\""))
     } else {
         input.to_string()
@@ -244,6 +256,26 @@ fn escape_csv(input: &str) -> String {
 
 fn escape_csv_force_quoted(input: &str) -> String {
     format!("\"{}\"", input.replace('"', "\"\""))
+}
+
+/// Serialize a Value to JSON string
+pub fn to_json_string(value: &Value) -> String {
+    serialize_json(value)
+}
+
+/// Serialize a Value to TOML string
+pub fn to_toml_string(value: &Value) -> Result<String> {
+    serialize_toml(value)
+}
+
+/// Serialize a Value to YAML string
+pub fn to_yaml_string(value: &Value) -> String {
+    serialize_yaml(value, 0)
+}
+
+/// Serialize a Value to CSV string
+pub fn to_csv_string(value: &Value, delimiter: u8) -> Result<String> {
+    serialize_csv(value, delimiter)
 }
 
 fn serialize_json(value: &Value) -> String {
@@ -269,7 +301,10 @@ fn serialize_json(value: &Value) -> String {
                 .collect();
             format!("{{{}}}", pairs.join(","))
         }
-        Value::Datetime(dt) => format!("\"{}\"", format_datetime(dt)),
+        Value::Datetime(dt) => match format_datetime(dt) {
+            Ok(s) => format!("\"{}\"", s),
+            Err(_) => "null".to_string(), // Fallback to null on error
+        },
     }
 }
 
@@ -282,6 +317,12 @@ fn escape_string(input: &str) -> String {
             '\n' => result.push_str("\\n"),
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
+            '\u{08}' => result.push_str("\\b"),
+            '\u{0C}' => result.push_str("\\f"),
+            #[allow(clippy::as_conversions)]
+            ch if u32::from(ch) < 0x20 => {
+                result.push_str(&format!("\\u{:04x}", u32::from(ch)));
+            }
             _ => result.push(ch),
         }
     }
@@ -303,12 +344,123 @@ fn serialize_toml(value: &Value) -> Result<String> {
     }
 }
 
-fn serialize_toml_object(obj: &Object) -> String {
+fn serialize_toml_object(root: &Object) -> String {
     let mut lines = Vec::new();
-    for (key, value) in obj.iter() {
-        lines.push(format!("{key} = {}", serialize_toml_value(value)));
+    let mut tables: Vec<(String, &Object)> = Vec::new();
+
+    // First pass: collect root-level non-table values
+    for (key, value) in root.iter() {
+        match value {
+            Value::Object(nested) => {
+                // Defer tables to second pass
+                tables.push((key.clone(), nested));
+            }
+            Value::Array(arr) if arr.iter().all(|v| matches!(v, Value::Object(_))) => {
+                // Array of tables - handle separately
+                lines.push(format!(
+                    "[[{}]]",
+                    key.split('.')
+                        .map(escape_toml_key)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                ));
+                for item in arr {
+                    if let Value::Object(obj) = item {
+                        serialize_inline_table(&mut lines, obj, "");
+                    }
+                }
+            }
+            _ => {
+                // Simple value at root
+                let escaped_key = escape_toml_key(key);
+                lines.push(format!("{escaped_key} = {}", serialize_toml_value(value)));
+            }
+        }
     }
+
+    // Second pass: output [table] sections for nested objects
+    for (key, obj) in tables {
+        serialize_toml_table_section(&mut lines, &key, obj);
+    }
+
     lines.join("\n")
+}
+
+fn serialize_toml_table_section(lines: &mut Vec<String>, key: &str, obj: &Object) {
+    // Output table header
+    lines.push(format!(
+        "[{}]",
+        key.split('.')
+            .map(escape_toml_key)
+            .collect::<Vec<_>>()
+            .join(".")
+    ));
+
+    let mut nested_tables: Vec<(String, &Object)> = Vec::new();
+
+    // Output simple values in this table
+    for (k, value) in obj.iter() {
+        match value {
+            Value::Object(nested) => {
+                nested_tables.push((format!("{key}.{k}"), nested));
+            }
+            Value::Array(arr) if arr.iter().all(|v| matches!(v, Value::Object(_))) => {
+                // Array of tables - output inline for now
+                lines.push(format!(
+                    "{} = [{}]",
+                    escape_toml_key(k),
+                    arr.iter()
+                        .map(|v| {
+                            if let Value::Object(o) = v {
+                                let entries: Vec<String> = o
+                                    .iter()
+                                    .map(|(ik, iv)| {
+                                        format!(
+                                            "{} = {}",
+                                            escape_toml_key(ik),
+                                            serialize_toml_value(iv)
+                                        )
+                                    })
+                                    .collect();
+                                format!("{{{}}}", entries.join(", "))
+                            } else {
+                                String::new()
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            _ => {
+                let escaped_key = escape_toml_key(k);
+                lines.push(format!("{escaped_key} = {}", serialize_toml_value(value)));
+            }
+        }
+    }
+
+    // Recurse into nested tables
+    for (full_key, nested) in nested_tables {
+        serialize_toml_table_section(lines, &full_key, nested);
+    }
+}
+
+fn serialize_inline_table(lines: &mut Vec<String>, obj: &Object, prefix: &str) {
+    for (key, value) in obj.iter() {
+        let full_key = if prefix.is_empty() {
+            escape_toml_key(key)
+        } else {
+            format!("{prefix}.{}", escape_toml_key(key))
+        };
+        match value {
+            Value::Object(_) | Value::Array(_) => {
+                // Inline representation for complex nested types
+                lines.push(format!("{full_key} = {}", serialize_toml_value(value)));
+            }
+            _ => {
+                lines.push(format!("{full_key} = {}", serialize_toml_value(value)));
+            }
+        }
+    }
 }
 
 fn serialize_toml_value(value: &Value) -> String {
@@ -330,11 +482,13 @@ fn serialize_toml_value(value: &Value) -> String {
         Value::Object(obj) => {
             let entries: Vec<String> = obj
                 .iter()
-                .map(|(k, v)| format!("{k} = {}", serialize_toml_value(v)))
+                .map(|(k, v)| format!("{} = {}", escape_toml_key(k), serialize_toml_value(v)))
                 .collect();
             format!("{{{}}}", entries.join(", "))
         }
-        Value::Datetime(dt) => format_datetime(dt),
+        Value::Datetime(dt) => {
+            format_datetime(dt).unwrap_or_else(|_| "\"\"\"1979-05-27T07:32:00\"\"\"".to_string())
+        }
     }
 }
 
@@ -433,6 +587,19 @@ fn escape_toml(input: &str) -> String {
     escape_string(input)
 }
 
+fn escape_toml_key(key: &str) -> String {
+    // Keys containing special chars must be quoted in TOML
+    // Special chars: space, tab, ., [, ], =, ", ', #
+    if key
+        .chars()
+        .any(|c| matches!(c, ' ' | '\t' | '.' | '[' | ']' | '=' | '"' | '\'' | '#'))
+    {
+        format!("\"{}\"", key.replace('"', "\\\""))
+    } else {
+        key.to_string()
+    }
+}
+
 fn serialize_yaml(value: &Value, indent: usize) -> String {
     let pad = " ".repeat(indent);
     match value {
@@ -440,7 +607,10 @@ fn serialize_yaml(value: &Value, indent: usize) -> String {
         Value::Bool(b) => format!("{pad}{b}"),
         Value::Number(n) => format!("{pad}{n}"),
         Value::String(s) => format!("{pad}\"{}\"", escape_yaml(s)),
-        Value::Datetime(dt) => format!("{pad}{}", format_datetime(dt)),
+        Value::Datetime(dt) => format!(
+            "{pad}{}",
+            format_datetime(dt).unwrap_or_else(|_| "null".to_string())
+        ),
         Value::Array(arr) => arr
             .iter()
             .map(|v| {
@@ -468,24 +638,46 @@ fn escape_yaml(input: &str) -> String {
     escape_string(input)
 }
 
-fn format_datetime(dt: &TomlDatetime) -> String {
+fn format_datetime(dt: &TomlDatetime) -> Result<String> {
     use time::format_description::well_known::Rfc3339;
     use time::macros::format_description;
     match dt {
-        TomlDatetime::OffsetDateTime(value) => value
-            .format(&Rfc3339)
-            .unwrap_or_else(|_| "1979-05-27T07:32:00Z".to_string()),
+        TomlDatetime::OffsetDateTime(value) => value.format(&Rfc3339).map_err(|e| {
+            Error::with_message(
+                ErrorKind::InvalidDatetime,
+                Span::empty(),
+                format!("failed to format OffsetDateTime: {e}"),
+            )
+        }),
         TomlDatetime::LocalDateTime(value) => value
             .format(&format_description!(
                 "[year]-[month]-[day]T[hour]:[minute]:[second]"
             ))
-            .unwrap_or_else(|_| "1979-05-27T07:32:00".to_string()),
+            .map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidDatetime,
+                    Span::empty(),
+                    format!("failed to format LocalDateTime: {e}"),
+                )
+            }),
         TomlDatetime::LocalDate(value) => value
             .format(&format_description!("[year]-[month]-[day]"))
-            .unwrap_or_else(|_| "1979-05-27".to_string()),
+            .map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidDatetime,
+                    Span::empty(),
+                    format!("failed to format LocalDate: {e}"),
+                )
+            }),
         TomlDatetime::LocalTime(value) => value
             .format(&format_description!("[hour]:[minute]:[second]"))
-            .unwrap_or_else(|_| "07:32:00".to_string()),
+            .map_err(|e| {
+                Error::with_message(
+                    ErrorKind::InvalidDatetime,
+                    Span::empty(),
+                    format!("failed to format LocalTime: {e}"),
+                )
+            }),
     }
 }
 
@@ -536,17 +728,34 @@ fn element_to_value(element: &XmlElement) -> Value {
     }
 
     if obj.is_empty() {
-        Value::Object(Object::new())
+        Value::Null
     } else {
         Value::Object(obj)
     }
 }
 
 fn value_to_xml(value: &Value) -> XmlDocument {
+    // If value is an Object with a single key, use that key as root name
+    // This prevents double-wrapping on XML→Value→XML round-trips
+    let (root_name, children) = match value {
+        Value::Object(obj) => {
+            if let Some((key, val)) = obj.iter().next() {
+                if obj.len() == 1 {
+                    (key.clone(), value_to_children(val))
+                } else {
+                    ("root".to_string(), value_to_children(value))
+                }
+            } else {
+                ("root".to_string(), value_to_children(value))
+            }
+        }
+        _ => ("root".to_string(), value_to_children(value)),
+    };
+
     let root = XmlElement {
-        name: "root".to_string(),
+        name: root_name,
         attributes: IndexMap::new(),
-        children: value_to_children(value),
+        children,
     };
     XmlDocument { root }
 }
@@ -563,7 +772,10 @@ fn value_to_children(value: &Value) -> Vec<XmlContent> {
         Value::Number(n) => vec![XmlContent::Text(n.to_string())],
         Value::Bool(b) => vec![XmlContent::Text(b.to_string())],
         Value::Null => Vec::new(),
-        Value::Datetime(dt) => vec![XmlContent::Text(format_datetime(dt))],
+        Value::Datetime(dt) => match format_datetime(dt) {
+            Ok(s) => vec![XmlContent::Text(s)],
+            Err(_) => Vec::new(), // Skip datetime on error
+        },
     }
 }
 
@@ -650,10 +862,17 @@ fn serialize_element(element: &XmlElement, output: &mut String) {
 }
 
 fn escape_xml(input: &str) -> String {
-    input
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+    // Single-pass XML escaping to avoid multiple allocations
+    let mut output = String::with_capacity(input.len());
+    for c in input.chars() {
+        match c {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&apos;"),
+            _ => output.push(c),
+        }
+    }
+    output
 }

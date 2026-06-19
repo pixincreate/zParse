@@ -10,6 +10,10 @@ description = "Axum-based API server for zparse"
 readme = "../../README.md"
 publish = false
 
+[lib]
+name = "zparse_api"
+path = "src/lib.rs"
+
 [[bin]]
 name = "zparse-api"
 path = "src/main.rs"
@@ -17,10 +21,41 @@ path = "src/main.rs"
 [dependencies]
 zparse = { workspace = true }
 serde = { workspace = true }
-serde_json = "1.0"
 axum = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 
+[dev-dependencies]
+serde_json = "1.0"
+tower = { version = "0.5", features = ["util"] }
+tokio-test = "0.4"
+
 [lints.rust]
 unsafe_code = "forbid"
+
+[lints.clippy]
+as_conversions = "warn"
+cloned_instead_of_copied = "warn"
+dbg_macro = "warn"
+expect_used = "warn"
+fn_params_excessive_bools = "warn"
+index_refutable_slice = "warn"
+indexing_slicing = "warn"
+large_futures = "warn"
+missing_panics_doc = "warn"
+mod_module_files = "warn"
+out_of_bounds_indexing = "deny"
+panic = "warn"
+panic_in_result_fn = "warn"
+panicking_unwrap = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+todo = "warn"
+trivially_copy_pass_by_ref = "warn"
+unimplemented = "warn"
+unnecessary_self_imports = "warn"
+unreachable = "warn"
+unwrap_in_result = "warn"
+unwrap_used = "warn"
+use_self = "warn"
+wildcard_dependencies = "warn"

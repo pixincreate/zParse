@@ -65,6 +65,18 @@ impl Config {
         self.allow_trailing_commas = allow;
         self
     }
+
+    /// Set maximum nesting depth (0 for unlimited)
+    pub const fn with_max_depth(mut self, max_depth: u16) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+
+    /// Set maximum input size in bytes (0 for unlimited)
+    pub const fn with_max_size(mut self, max_size: usize) -> Self {
+        self.max_size = max_size;
+        self
+    }
 }
 
 /// Context for tracking position within containers
@@ -246,18 +258,18 @@ impl<'a> Parser<'a> {
         Err(self.error(ErrorKind::InvalidToken))
     }
 
-    /// Returns the parser configuration.
-    pub fn config(&self) -> &Config {
+    #[cfg(test)]
+    fn config(&self) -> &Config {
         &self.config
     }
 
-    /// Returns the current parsing depth.
-    pub fn depth(&self) -> u16 {
+    #[cfg(test)]
+    fn depth(&self) -> u16 {
         self.depth
     }
 
-    /// Returns the number of bytes parsed so far.
-    pub fn bytes_parsed(&self) -> usize {
+    #[cfg(test)]
+    fn bytes_parsed(&self) -> usize {
         self.bytes_parsed
     }
 
@@ -471,5 +483,37 @@ impl<'a> Parser<'a> {
             token.span.start.line,
             token.span.start.col,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parser_new() {
+        let input = b"{}";
+        let parser = Parser::new(input);
+        assert_eq!(parser.config().max_depth, 128);
+        assert_eq!(parser.config().max_size, 10 * 1024 * 1024);
+        assert!(!parser.config().allow_comments);
+        assert!(!parser.config().allow_trailing_commas);
+        assert_eq!(parser.depth(), 0);
+        assert_eq!(parser.bytes_parsed(), 0);
+    }
+
+    #[test]
+    fn test_parser_with_config() {
+        let config = Config::default()
+            .with_max_depth(64)
+            .with_max_size(1024)
+            .with_comments(true)
+            .with_trailing_commas(true);
+        let input = b"{}";
+        let parser = Parser::with_config(input, config);
+        assert_eq!(parser.config().max_depth, 64);
+        assert_eq!(parser.config().max_size, 1024);
+        assert!(parser.config().allow_comments);
+        assert!(parser.config().allow_trailing_commas);
     }
 }

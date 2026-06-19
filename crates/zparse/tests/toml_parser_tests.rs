@@ -232,7 +232,7 @@ color = \"gray\"\n";
 #[test]
 fn test_size_limit_counts_ignorable_prefix() -> Result<()> {
     let input = b"# long comment prefix\nkey = 1\n";
-    let config = Config::new(0, 10);
+    let config = Config::default().with_max_depth(0).with_max_size(10);
     let mut parser = Parser::with_config(input, config);
 
     let result = parser.parse();

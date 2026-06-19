@@ -47,7 +47,7 @@ fn test_config_unlimited() {
 
 #[test]
 fn test_config_new() {
-    let config = Config::new(64, 1024);
+    let config = Config::default().with_max_depth(64).with_max_size(1024);
     assert_eq!(config.max_depth, 64);
     assert_eq!(config.max_size, 1024);
     assert!(!config.allow_comments);
@@ -95,24 +95,6 @@ fn test_trailing_comma_allowed_array() -> Result<()> {
         return fail("expected array".to_string());
     }
     Ok(())
-}
-
-#[test]
-fn test_parser_new() {
-    let input = b"null";
-    let parser = Parser::new(input);
-    assert_eq!(parser.config().max_depth, 128);
-    assert_eq!(parser.depth(), 0);
-    assert_eq!(parser.bytes_parsed(), 0);
-}
-
-#[test]
-fn test_parser_with_config() {
-    let input = b"null";
-    let config = Config::new(32, 512);
-    let parser = Parser::with_config(input, config);
-    assert_eq!(parser.config().max_depth, 32);
-    assert_eq!(parser.config().max_size, 512);
 }
 
 #[test]
@@ -379,7 +361,7 @@ fn test_parse_value_nested() -> Result<()> {
 #[test]
 fn test_depth_limit() -> Result<()> {
     let input = br#"{"a": {"b": {"c": 1}}}"#;
-    let config = Config::new(2, 0); // max depth of 2
+    let config = Config::default().with_max_depth(2).with_max_size(0); // max depth of 2
     let mut parser = Parser::with_config(input, config);
 
     // Should fail when trying to enter third level
@@ -402,7 +384,7 @@ fn test_depth_limit_reports_opener_position() -> Result<()> {
     }
   }
 }"#;
-    let config = Config::new(2, 0);
+    let config = Config::default().with_max_depth(2).with_max_size(0);
     let mut parser = Parser::with_config(input, config);
 
     let result = parser.parse_value();
@@ -424,7 +406,7 @@ fn test_depth_limit_reports_opener_position() -> Result<()> {
 #[test]
 fn test_size_limit() -> Result<()> {
     let input = b"1234567890";
-    let config = Config::new(0, 5); // max size of 5 bytes
+    let config = Config::default().with_max_depth(0).with_max_size(5); // max size of 5 bytes
     let mut parser = Parser::with_config(input, config);
 
     let result = parser.parse_value();
@@ -440,7 +422,10 @@ fn test_size_limit() -> Result<()> {
 #[test]
 fn test_size_limit_counts_ignorable_prefix_with_comments() -> Result<()> {
     let input = b"/* very long comment prefix */\n123";
-    let config = Config::new(0, 10).with_comments(true);
+    let config = Config::default()
+        .with_max_depth(0)
+        .with_max_size(10)
+        .with_comments(true);
     let mut parser = Parser::with_config(input, config);
 
     let result = parser.parse_value();

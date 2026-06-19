@@ -31,7 +31,10 @@ pub mod value;
 pub use value::{Array, Object, TomlDatetime, Value};
 
 pub mod convert;
-pub use convert::{ConvertOptions, Format, convert, convert_with_options};
+pub use convert::{
+    ConvertOptions, Format, convert, convert_with_options, to_csv_string, to_json_string,
+    to_toml_string, to_yaml_string,
+};
 
 pub mod csv;
 pub use csv::{Config as CsvConfig, Parser as CsvParser};

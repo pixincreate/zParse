@@ -263,8 +263,9 @@ impl Object {
     }
 
     /// Removes a key from the object, returning the value if the key was present
+    /// Preserves insertion order of remaining keys (uses shift_remove)
     pub fn remove(&mut self, key: &str) -> Option<Value> {
-        self.0.swap_remove(key)
+        self.0.shift_remove(key)
     }
 
     /// Returns true if the object contains the specified key
@@ -412,8 +413,13 @@ impl Array {
     }
 
     /// Removes and returns the element at the given index
-    pub fn remove(&mut self, index: usize) -> Value {
-        self.0.remove(index)
+    /// Returns None if index is out of bounds
+    pub fn remove(&mut self, index: usize) -> Option<Value> {
+        if index < self.0.len() {
+            Some(self.0.remove(index))
+        } else {
+            None
+        }
     }
 }
 
